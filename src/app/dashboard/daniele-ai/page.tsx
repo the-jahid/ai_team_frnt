@@ -440,7 +440,7 @@ export default function DanieleAIPage() {
                   }}
                 >
                   <img
-                    src="https://www.ai-scaleup.com/wp-content/uploads/2024/11/Gary-AI-SMMg-icon.png"
+                    src="https://www.ai-scaleup.com/wp-content/uploads/2025/11/daniele_ai_direct_response_copywriter.png"
                     alt="Daniele AI"
                     style={{ width: "100%", height: "100%", objectFit: "cover" }}
                   />
@@ -797,7 +797,7 @@ export default function DanieleAIPage() {
                   <img
                     src={
                       message.sender === "ai"
-                        ? "https://www.ai-scaleup.com/wp-content/uploads/2024/11/Gary-AI-SMMg-icon.png"
+                        ? "https://www.ai-scaleup.com/wp-content/uploads/2025/11/daniele_ai_direct_response_copywriter.png"
                         : "https://www.shutterstock.com/image-vector/vector-flat-illustration-grayscale-avatar-600nw-2264922221.jpg"
                     }
                     alt={message.sender === "ai" ? "Daniele AI" : "Cliente"}

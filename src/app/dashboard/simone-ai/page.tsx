@@ -178,7 +178,7 @@ export default function SimoneAI() {
       '<code style="background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 4px; font-family: monospace;">$1</code>',
     )
     formatted = formatted.replace(
-      /\[([^\]]+?)\]$$(https?:\/\/[^\s)]+)$$/g,
+      /\[([^\]]+?)\]\$\$(https?:\/\/[^\s)]+)\$\$/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #235E84; text-decoration: underline;">$1</a>',
     )
     formatted = formatted.replace(/\n/g, "<br>")
@@ -648,7 +648,7 @@ export default function SimoneAI() {
                 style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}
               >
                 <Link
-                  href="/tony-ai"
+                  href="/dashboard/tony-ai"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -682,7 +682,7 @@ export default function SimoneAI() {
                   <span style={{ fontSize: "14px", fontWeight: 500 }}>Tony AI</span>
                 </Link>
                 <Link
-                  href="/aladino-ai"
+                  href="/dashboard/aladino-ai"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -716,7 +716,7 @@ export default function SimoneAI() {
                   <span style={{ fontSize: "14px", fontWeight: 500 }}>Aladdin AI</span>
                 </Link>
                 <Link
-                  href="/lara-ai"
+                  href="/dashboard/lara-ai"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -750,7 +750,7 @@ export default function SimoneAI() {
                   <span style={{ fontSize: "14px", fontWeight: 500 }}>Lara AI</span>
                 </Link>
                 <Link
-                  href="/simone-ai"
+                  href="/dashboard/simone-ai"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -784,7 +784,7 @@ export default function SimoneAI() {
                   <span style={{ fontSize: "14px", fontWeight: 500 }}>Simone AI</span>
                 </Link>
                 <Link
-                  href="/"
+                  href="/dashboard/mike-ai"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -818,7 +818,7 @@ export default function SimoneAI() {
                   <span style={{ fontSize: "14px", fontWeight: 500 }}>Mike AI</span>
                 </Link>
                 <Link
-                  href="/daniele-ai"
+                  href="/dashboard/daniele-ai"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -852,7 +852,7 @@ export default function SimoneAI() {
                   <span style={{ fontSize: "14px", fontWeight: 500 }}>Daniele AI</span>
                 </Link>
                 <Link
-                  href="/alex-ai"
+                  href="/dashboard/alex-ai"
                   style={{
                     display: "flex",
                     alignItems: "center",

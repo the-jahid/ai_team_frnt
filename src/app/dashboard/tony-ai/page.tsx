@@ -673,38 +673,57 @@ export default function TonyAIPage() {
                   {
                     name: "Tony AI",
                     img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Tony-AI-strategiest.png",
-                    link: "/tony-ai",
+                    link: "/dashboard/tony-ai",
                   },
                   {
                     name: "Aladino AI",
                     img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Aladdin-AI-consultant.png",
-                    link: "/aladino-ai",
+                    link: "/dashboard/aladino-ai",
                   },
                   {
                     name: "Lara AI",
                     img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Lara-AI-social-strategiest.png",
-                    link: "https://members.digital-coach.com/products/lara-ai",
+                    link: "/dashboard/lara-ai",
                   },
                   {
                     name: "Simone AI",
                     img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Simone-AI-seo-copy.png",
-                    link: "https://members.digital-coach.com/products/simone-ai",
+                    link: "/dashboard/simone-ai",
                   },
                   {
                     name: "Mike AI",
                     img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Mike-AI-digital-marketing-mg.png",
-                    link: "/",
+                    link: "/dashboard/mike-ai",
+                  },
+                  {
+                    name: "Valentina AI",
+                    img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Valentina-AI-community-mg.png",
+                    link: "/dashboard/valentina-ai",
+                  },
+                  {
+                    name: "Niko AI",
+                    img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Niko-AI-ecommerce-specialist.png",
+                    link: "/dashboard/niko-ai",
+                  },
+                  {
+                    name: "Jim AI",
+                    img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Jim-AI-startup-consultant.png",
+                    link: "/dashboard/jim-ai",
+                  },
+                  {
+                    name: "Daniele AI",
+                    img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Daniel-AI-career-advisor.png",
+                    link: "/dashboard/daniele-ai",
                   },
                   {
                     name: "Alex AI",
                     img: "https://www.ai-scaleup.com/wp-content/uploads/2025/03/David-AI-Ai-Specialist-social-ads.png",
-                    link: "/alex-ai",
+                    link: "/dashboard/alex-ai",
                   },
                 ].map((agent) => (
                   <Link
                     key={agent.name}
                     href={agent.link}
-                    target={agent.link.startsWith("http") ? "_blank" : undefined}
                     style={{
                       display: "flex",
                       alignItems: "center",

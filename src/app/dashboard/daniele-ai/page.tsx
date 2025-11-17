@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { UserButton } from "@clerk/nextjs"
-import { Home } from "lucide-react"
+import { Home } from 'lucide-react'
 
 interface Message {
   text: string
@@ -722,7 +722,8 @@ export default function DanieleAIPage() {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      fontSize: "12px",
+                      flexShrink: 0,
+                      transition: "all 0.2s ease",
                     }}
                     title="Elimina conversazione"
                   >
@@ -762,32 +763,52 @@ export default function DanieleAIPage() {
                 {
                   name: "Tony AI",
                   img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Tony-AI-strategiest.png",
-                  href: "/tony-ai",
+                  href: "/dashboard/tony-ai",
                 },
                 {
                   name: "Aladino AI",
                   img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Aladdin-AI-consultant.png",
-                  href: "/aladino-ai",
+                  href: "/dashboard/aladino-ai",
                 },
                 {
                   name: "Lara AI",
                   img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Lara-AI-social-strategiest.png",
-                  href: "https://members.digital-coach.com/products/lara-ai",
+                  href: "/dashboard/lara-ai",
                 },
                 {
                   name: "Simone AI",
                   img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Simone-AI-seo-copy.png",
-                  href: "https://members.digital-coach.com/products/simone-ai",
+                  href: "/dashboard/simone-ai",
                 },
                 {
                   name: "Mike AI",
                   img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Mike-AI-digital-marketing-mg.png",
-                  href: "/",
+                  href: "/dashboard/mike-ai",
                 },
                 {
                   name: "Alex AI",
                   img: "https://www.ai-scaleup.com/wp-content/uploads/2025/03/David-AI-Ai-Specialist-social-ads.png",
-                  href: "/alex-ai",
+                  href: "/dashboard/alex-ai",
+                },
+                {
+                  name: "Valentina AI",
+                  img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Valentina-AI-email-marketing.png",
+                  href: "/dashboard/valentina-ai",
+                },
+                {
+                  name: "Niko AI",
+                  img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Niko-AI-content-creator.png",
+                  href: "/dashboard/niko-ai",
+                },
+                {
+                  name: "Jim AI",
+                  img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Jim-AI-podcast-expert.png",
+                  href: "/dashboard/jim-ai",
+                },
+                {
+                  name: "Daniele AI",
+                  img: "https://www.ai-scaleup.com/wp-content/uploads/2024/11/Gary-AI-SMMg-icon.png",
+                  href: "/dashboard/daniele-ai",
                 },
               ].map((agent) => (
                 <Link
@@ -1121,4 +1142,3 @@ export default function DanieleAIPage() {
     </>
   )
 }
-

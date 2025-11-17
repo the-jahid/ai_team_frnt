@@ -652,7 +652,7 @@ export default function ValentinaAI() {
                 style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}
               >
                 <Link
-                  href="/tony-ai"
+                  href="/dashboard/tony-ai"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -685,7 +685,7 @@ export default function ValentinaAI() {
                   <span style={{ fontSize: "14px", fontWeight: 500 }}>Tony AI</span>
                 </Link>
                 <Link
-                  href="/aladino-ai"
+                  href="/dashboard/aladino-ai"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -718,7 +718,7 @@ export default function ValentinaAI() {
                   <span style={{ fontSize: "14px", fontWeight: 500 }}>Aladdin AI</span>
                 </Link>
                 <Link
-                  href="/lara-ai"
+                  href="/dashboard/lara-ai"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -751,7 +751,7 @@ export default function ValentinaAI() {
                   <span style={{ fontSize: "14px", fontWeight: 500 }}>Lara AI</span>
                 </Link>
                 <Link
-                  href="/simone-ai"
+                  href="/dashboard/simone-ai"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -784,7 +784,7 @@ export default function ValentinaAI() {
                   <span style={{ fontSize: "14px", fontWeight: 500 }}>Simone AI</span>
                 </Link>
                 <Link
-                  href="/"
+                  href="/dashboard/mike-ai"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -817,7 +817,7 @@ export default function ValentinaAI() {
                   <span style={{ fontSize: "14px", fontWeight: 500 }}>Mike AI</span>
                 </Link>
                 <Link
-                  href="/niko-ai"
+                  href="/dashboard/niko-ai"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -850,7 +850,7 @@ export default function ValentinaAI() {
                   <span style={{ fontSize: "14px", fontWeight: 500 }}>Niko AI</span>
                 </Link>
                 <Link
-                  href="/daniele-ai"
+                  href="/dashboard/daniele-ai"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -883,7 +883,7 @@ export default function ValentinaAI() {
                   <span style={{ fontSize: "14px", fontWeight: 500 }}>Daniele AI</span>
                 </Link>
                 <Link
-                  href="/alex-ai"
+                  href="/dashboard/alex-ai"
                   style={{
                     display: "flex",
                     alignItems: "center",

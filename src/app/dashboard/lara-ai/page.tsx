@@ -1417,7 +1417,7 @@ export default function LaraAI() {
             <div className="agents-section">
               <h3 className="agents-title">AGENTI AI:</h3>
               <div className="agents-list">
-                <Link href="/tony-ai" className="agent-item">
+                <Link href="/dashboard/tony-ai" className="agent-item">
                   <div className="agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Tony-AI-strategiest.png"
@@ -1426,7 +1426,7 @@ export default function LaraAI() {
                   </div>
                   <span className="agent-name">Tony AI</span>
                 </Link>
-                <Link href="/aladino-ai" className="agent-item">
+                <Link href="/dashboard/aladino-ai" className="agent-item">
                   <div className="agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Aladdin-AI-consultant.png"
@@ -1435,7 +1435,7 @@ export default function LaraAI() {
                   </div>
                   <span className="agent-name">Aladdin AI</span>
                 </Link>
-                <Link href="/lara-ai" className="agent-item">
+                <Link href="/dashboard/lara-ai" className="agent-item">
                   <div className="agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Lara-AI-social-strategiest.png"
@@ -1444,7 +1444,7 @@ export default function LaraAI() {
                   </div>
                   <span className="agent-name">Lara AI</span>
                 </Link>
-                <Link href="/" className="agent-item">
+                <Link href="/dashboard/simone-ai" className="agent-item">
                   <div className="agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Simone-AI-seo-copy.png"
@@ -1453,7 +1453,7 @@ export default function LaraAI() {
                   </div>
                   <span className="agent-name">Simone AI</span>
                 </Link>
-                <Link href="/" className="agent-item">
+                <Link href="/dashboard/mike-ai" className="agent-item">
                   <div className="agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Mike-AI-digital-marketing-mg.png"
@@ -1462,7 +1462,7 @@ export default function LaraAI() {
                   </div>
                   <span className="agent-name">Mike AI</span>
                 </Link>
-                <Link href="/" className="agent-item">
+                <Link href="/dashboard/valentina-ai" className="agent-item">
                   <div className="agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/03/Valentina-AI-AI-SEO-optimizer.png"
@@ -1471,13 +1471,13 @@ export default function LaraAI() {
                   </div>
                   <span className="agent-name">Valentina AI</span>
                 </Link>
-                <Link href="/" className="agent-item">
+                <Link href="/dashboard/niko-ai" className="agent-item">
                   <div className="agent-avatar">
                     <img src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Niko-AI.png" alt="Niko" />
                   </div>
                   <span className="agent-name">Niko AI</span>
                 </Link>
-                <Link href="/" className="agent-item">
+                <Link href="/dashboard/jim-ai" className="agent-item">
                   <div className="agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Jim-AI-%E2%80%93-AI-Coach.png"
@@ -1486,7 +1486,7 @@ export default function LaraAI() {
                   </div>
                   <span className="agent-name">Jim AI</span>
                 </Link>
-                <Link href="/daniele-ai" className="agent-item">
+                <Link href="/dashboard/daniele-ai" className="agent-item">
                   <div className="agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2024/11/Gary-AI-SMMg-icon.png"
@@ -1495,7 +1495,7 @@ export default function LaraAI() {
                   </div>
                   <span className="agent-name">Daniele AI</span>
                 </Link>
-                <Link href="/alex-ai" className="agent-item">
+                <Link href="/dashboard/alex-ai" className="agent-item">
                   <div className="agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/03/David-AI-Ai-Specialist-social-ads.png"

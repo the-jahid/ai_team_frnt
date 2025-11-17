@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { UserButton } from "@clerk/nextjs"
 import Link from "next/link"
-import { Home } from "lucide-react"
+import { Home } from 'lucide-react'
 
 export default function AladinoAI() {
   const [messages, setMessages] = useState<Array<{ text: string; sender: "ai" | "user"; time: string; raw?: string }>>([
@@ -1362,12 +1362,7 @@ export default function AladinoAI() {
             <div className="aladino-agents-section">
               <h3 className="aladino-agents-title">AGENTI AI:</h3>
               <div className="aladino-agents-list">
-                <a
-                  href="https://members.digital-coach.com/products/tony-ai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="aladino-agent-item"
-                >
+                <Link href="/dashboard/tony-ai" className="aladino-agent-item">
                   <div className="aladino-agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Tony-AI-strategiest.png"
@@ -1375,13 +1370,8 @@ export default function AladinoAI() {
                     />
                   </div>
                   <span className="aladino-agent-name">Tony AI</span>
-                </a>
-                <a
-                  href="https://members.digital-coach.com/products/aladdin-ai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="aladino-agent-item"
-                >
+                </Link>
+                <Link href="/dashboard/aladino-ai" className="aladino-agent-item">
                   <div className="aladino-agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Aladdin-AI-consultant.png"
@@ -1389,13 +1379,8 @@ export default function AladinoAI() {
                     />
                   </div>
                   <span className="aladino-agent-name">Aladdin AI</span>
-                </a>
-                <a
-                  href="https://members.digital-coach.com/products/lara-ai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="aladino-agent-item"
-                >
+                </Link>
+                <Link href="/dashboard/lara-ai" className="aladino-agent-item">
                   <div className="aladino-agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Lara-AI-social-strategiest.png"
@@ -1403,13 +1388,8 @@ export default function AladinoAI() {
                     />
                   </div>
                   <span className="aladino-agent-name">Lara AI</span>
-                </a>
-                <a
-                  href="https://members.digital-coach.com/products/simone-ai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="aladino-agent-item"
-                >
+                </Link>
+                <Link href="/dashboard/simone-ai" className="aladino-agent-item">
                   <div className="aladino-agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Simone-AI-seo-copy.png"
@@ -1417,13 +1397,8 @@ export default function AladinoAI() {
                     />
                   </div>
                   <span className="aladino-agent-name">Simone AI</span>
-                </a>
-                <a
-                  href="https://members.digital-coach.com/products/mike-ai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="aladino-agent-item"
-                >
+                </Link>
+                <Link href="/dashboard/mike-ai" className="aladino-agent-item">
                   <div className="aladino-agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Mike-AI-digital-marketing-mg.png"
@@ -1431,13 +1406,8 @@ export default function AladinoAI() {
                     />
                   </div>
                   <span className="aladino-agent-name">Mike AI</span>
-                </a>
-                <a
-                  href="https://members.digital-coach.com/products/valentina-ai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="aladino-agent-item"
-                >
+                </Link>
+                <Link href="/dashboard/valentina-ai" className="aladino-agent-item">
                   <div className="aladino-agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/03/Valentina-AI-AI-SEO-optimizer.png"
@@ -1445,24 +1415,14 @@ export default function AladinoAI() {
                     />
                   </div>
                   <span className="aladino-agent-name">Valentina AI</span>
-                </a>
-                <a
-                  href="https://members.digital-coach.com/products/niko-ai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="aladino-agent-item"
-                >
+                </Link>
+                <Link href="/dashboard/niko-ai" className="aladino-agent-item">
                   <div className="aladino-agent-avatar">
                     <img src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Niko-AI.png" alt="Niko ai" />
                   </div>
                   <span className="aladino-agent-name">Niko AI</span>
-                </a>
-                <a
-                  href="https://members.digital-coach.com/products/jim-ai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="aladino-agent-item"
-                >
+                </Link>
+                <Link href="/dashboard/jim-ai" className="aladino-agent-item">
                   <div className="aladino-agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Jim-AI-%E2%80%93-AI-Coach.png"
@@ -1470,13 +1430,8 @@ export default function AladinoAI() {
                     />
                   </div>
                   <span className="aladino-agent-name">Jim AI</span>
-                </a>
-                <a
-                  href="https://members.digital-coach.com/products/daniele-ai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="aladino-agent-item"
-                >
+                </Link>
+                <Link href="/dashboard/daniele-ai" className="aladino-agent-item">
                   <div className="aladino-agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2024/11/Gary-AI-SMMg-icon.png"
@@ -1484,13 +1439,8 @@ export default function AladinoAI() {
                     />
                   </div>
                   <span className="aladino-agent-name">Daniele AI</span>
-                </a>
-                <a
-                  href="https://members.digital-coach.com/products/alex-ai-2-0"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="aladino-agent-item"
-                >
+                </Link>
+                <Link href="/dashboard/alex-ai" className="aladino-agent-item">
                   <div className="aladino-agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/03/David-AI-Ai-Specialist-social-ads.png"
@@ -1498,7 +1448,7 @@ export default function AladinoAI() {
                     />
                   </div>
                   <span className="aladino-agent-name">Alex AI</span>
-                </a>
+                </Link>
               </div>
             </div>
           </div>

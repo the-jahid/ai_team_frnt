@@ -1772,52 +1772,52 @@ export default function MikeAIChat() {
                   {[
                     {
                       name: "Tony AI",
-                      url: "https://members.digital-coach.com/products/tony-ai",
+                      url: "/dashboard/tony-ai",
                       img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Tony-AI-strategiest.png",
                     },
                     {
                       name: "Aladino AI",
-                      url: "https://members.digital-coach.com/products/aladdin-ai",
+                      url: "/dashboard/aladino-ai",
                       img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Aladdin-AI-consultant.png",
                     },
                     {
                       name: "Lara AI",
-                      url: "https://members.digital-coach.com/products/lara-ai",
+                      url: "/dashboard/lara-ai",
                       img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Lara-AI-social-strategiest.png",
                     },
                     {
                       name: "Simone AI",
-                      url: "https://members.digital-coach.com/products/simone-ai",
+                      url: "/dashboard/simone-ai",
                       img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Simone-AI-seo-copy.png",
                     },
                     {
                       name: "Mike AI",
-                      url: "https://members.digital-coach.com/products/mike-ai",
+                      url: "/dashboard/mike-ai",
                       img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Mike-AI-digital-marketing-mg.png",
                     },
                     {
                       name: "Valentina AI",
-                      url: "https://members.digital-coach.com/products/valentina-ai",
+                      url: "/dashboard/valentina-ai",
                       img: "https://www.ai-scaleup.com/wp-content/uploads/2025/03/Valentina-AI-AI-SEO-optimizer.png",
                     },
                     {
                       name: "Niko AI",
-                      url: "https://members.digital-coach.com/products/niko-ai",
+                      url: "/dashboard/niko-ai",
                       img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Niko-AI.png",
                     },
                     {
                       name: "Jim AI",
-                      url: "https://members.digital-coach.com/products/jim-ai",
+                      url: "/dashboard/jim-ai",
                       img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Jim-AI-%E2%80%93-AI-Coach.png",
                     },
                     {
                       name: "Daniele AI",
-                      url: "https://members.digital-coach.com/products/daniele-ai",
+                      url: "/dashboard/daniele-ai",
                       img: "https://www.ai-scaleup.com/wp-content/uploads/2024/11/Gary-AI-SMMg-icon.png",
                     },
                     {
                       name: "Alex AI",
-                      url: "https://members.digital-coach.com/products/alex-ai-2-0",
+                      url: "/dashboard/alex-ai",
                       img: "https://www.ai-scaleup.com/wp-content/uploads/2025/03/David-AI-Ai-Specialist-social-ads.png",
                     },
                   ].map((agent, idx) => (

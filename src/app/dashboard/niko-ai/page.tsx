@@ -1218,7 +1218,7 @@ export default function NikoAI() {
             <div className="niko-agents-section">
               <h3 className="niko-agents-title">AGENTI AI:</h3>
               <div className="niko-agents-list">
-                <Link href="/tony-ai" className="niko-agent-item">
+                <Link href="/dashboard/tony-ai" className="niko-agent-item">
                   <div className="niko-agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Tony-AI-strategiest.png"
@@ -1227,7 +1227,7 @@ export default function NikoAI() {
                   </div>
                   <span className="niko-agent-name">Tony AI</span>
                 </Link>
-                <Link href="/aladino-ai" className="niko-agent-item">
+                <Link href="/dashboard/aladino-ai" className="niko-agent-item">
                   <div className="niko-agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Aladdin-AI-consultant.png"
@@ -1236,7 +1236,7 @@ export default function NikoAI() {
                   </div>
                   <span className="niko-agent-name">Aladdin AI</span>
                 </Link>
-                <Link href="/lara-ai" className="niko-agent-item">
+                <Link href="/dashboard/lara-ai" className="niko-agent-item">
                   <div className="niko-agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Lara-AI-social-strategiest.png"
@@ -1245,7 +1245,7 @@ export default function NikoAI() {
                   </div>
                   <span className="niko-agent-name">Lara AI</span>
                 </Link>
-                <Link href="/simone-ai" className="niko-agent-item">
+                <Link href="/dashboard/simone-ai" className="niko-agent-item">
                   <div className="niko-agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Simone-AI-seo-copy.png"
@@ -1254,7 +1254,7 @@ export default function NikoAI() {
                   </div>
                   <span className="niko-agent-name">Simone AI</span>
                 </Link>
-                <Link href="/" className="niko-agent-item">
+                <Link href="/dashboard/mike-ai" className="niko-agent-item">
                   <div className="niko-agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2024/11/Gary-AI-SMMg-icon.png"
@@ -1263,7 +1263,7 @@ export default function NikoAI() {
                   </div>
                   <span className="niko-agent-name">Mike AI</span>
                 </Link>
-                <Link href="/alex-ai" className="niko-agent-item">
+                <Link href="/dashboard/alex-ai" className="niko-agent-item">
                   <div className="niko-agent-avatar">
                     <img
                       src="https://www.shutterstock.com/image-vector/vector-flat-illustration-grayscale-avatar-600nw-2264922221.jpg"
@@ -1272,7 +1272,7 @@ export default function NikoAI() {
                   </div>
                   <span className="niko-agent-name">Alex AI</span>
                 </Link>
-                <Link href="/daniele-ai" className="niko-agent-item">
+                <Link href="/dashboard/daniele-ai" className="niko-agent-item">
                   <div className="niko-agent-avatar">
                     <img
                       src="https://www.ai-scaleup.com/wp-content/uploads/2024/11/Gary-AI-SMMg-icon.png"
@@ -1280,6 +1280,33 @@ export default function NikoAI() {
                     />
                   </div>
                   <span className="niko-agent-name">Daniele AI</span>
+                </Link>
+                <Link href="/dashboard/niko-ai" className="niko-agent-item">
+                  <div className="niko-agent-avatar">
+                    <img
+                      src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Niko-AI.png"
+                      alt="Niko"
+                    />
+                  </div>
+                  <span className="niko-agent-name">Niko AI</span>
+                </Link>
+                <Link href="/dashboard/valentina-ai" className="niko-agent-item">
+                  <div className="niko-agent-avatar">
+                    <img
+                      src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Valentina-AI-copywriter.png"
+                      alt="Valentina"
+                    />
+                  </div>
+                  <span className="niko-agent-name">Valentina AI</span>
+                </Link>
+                <Link href="/dashboard/jim-ai" className="niko-agent-item">
+                  <div className="niko-agent-avatar">
+                    <img
+                      src="https://www.ai-scaleup.com/wp-content/uploads/2025/02/Jim-AI-email-marketing.png"
+                      alt="Jim"
+                    />
+                  </div>
+                  <span className="niko-agent-name">Jim AI</span>
                 </Link>
               </div>
             </div>

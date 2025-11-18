@@ -327,7 +327,7 @@ export default function MikeAIPage() {
     }
   }
 
-  async function sendMessage() {
+async function sendMessage() {
     const message = inputValue.trim()
     if (!message && pendingFiles.length === 0) return
 
@@ -341,6 +341,10 @@ export default function MikeAIPage() {
     const newMessages = [...messages, userMsg]
     setMessages(newMessages)
     setInputValue("")
+
+    if (message) {
+      await upsertMessageToPinecone(message, "user")
+    }
 
     if (pendingFiles.length) {
       try {
@@ -428,16 +432,22 @@ export default function MikeAIPage() {
         }
       }
 
+      const finalAIMessage = rawText || "Mi dispiace, non ho ricevuto una risposta valida."
+      
       const finalMessages: Message[] = [
         ...newMessages,
         {
           sender: "ai",
-          text: rawText || "Mi dispiace, non ho ricevuto una risposta valida.",
+          text: finalAIMessage,
           time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
         },
       ]
       setMessages(finalMessages)
       saveChat(currentChatId, finalMessages, generatedTitle || undefined)
+
+      if (finalAIMessage && finalAIMessage !== "...") {
+        await upsertMessageToPinecone(finalAIMessage, "ai")
+      }
     } catch (err) {
       console.error("[v0] Error with streaming request:", err)
       const errorMsg: Message = {
@@ -450,6 +460,7 @@ export default function MikeAIPage() {
       setIsLoading(false)
     }
   }
+
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {

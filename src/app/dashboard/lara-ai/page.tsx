@@ -1475,7 +1475,7 @@ export default function LaraAI() {
             </div>
 
             <div className="agents-section">
-              <h3 className="agents-title">AGENTI AI:</h3>
+              <h3 className="agents-title">AGENTI AI::</h3>
               <div className="agents-list">
                 <a href="/dashboard/tony-ai" target="_blank" rel="noopener noreferrer" className="agent-item">
                   <div className="agent-avatar">

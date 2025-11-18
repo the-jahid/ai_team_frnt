@@ -126,8 +126,7 @@ export default function GiuliaWidget() {
 
   // Wire up listeners
   useEffect(() => {
-    // open on mount and print first message
-    toggleOpen(true)
+    // Add welcome message when component mounts (will show when user opens chat)
     addMessage("Ciao 👋 Sono Giulia, la tua AI Team Tutor! Come posso aiutarti?", "ai")
 
     const bubble = chatBubbleRef.current

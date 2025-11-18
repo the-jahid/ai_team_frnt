@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { UserButton } from "@clerk/nextjs"
 import { Home } from 'lucide-react'
+import { marked } from 'marked'
 
 export default function TonyAIPage() {
   const [messages, setMessages] = useState<Array<{ text: string; sender: "ai" | "user"; time: string }>>([])
@@ -157,6 +158,24 @@ export default function TonyAIPage() {
   }
 
   const formatMessageText = (text: string): string => {
+    if (!text) return ''
+
+    // Detect if text contains a markdown table (needs at least 2 lines with pipes and a separator line)
+    const hasTable = /\|.*\|.*\n\s*\|[\s\-:]+\|/m.test(text)
+
+    if (hasTable) {
+      try {
+        marked.setOptions({
+          gfm: true,        // GitHub Flavored Markdown (tables!)
+          breaks: true      // Convert \n to <br>
+        })
+        return marked.parse(text) as string
+      } catch (e) {
+        console.error("Marked parsing error:", e)
+      }
+    }
+
+    // Basic formatting for non-table content
     let t = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     t = t.replace(/\*(.+?)\*/g, "<em>$1</em>")
@@ -352,7 +371,7 @@ export default function TonyAIPage() {
       <style jsx global>{`
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-        
+       
         .tony-scrollbar::-webkit-scrollbar { width: 8px; }
         .tony-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
         .tony-scrollbar::-webkit-scrollbar-thumb { background: #235E84; border-radius: 4px; }
@@ -402,10 +421,71 @@ export default function TonyAIPage() {
         }
 
         @keyframes typing {
-          0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
-          40% { transform: scale(1); opacity: 1; }
-        }
-      `}</style>
+  0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+  40% { transform: scale(1); opacity: 1; }
+}  
+
+.tony-message-bubble table {
+  width: 100% !important;
+  display: table !important;
+  border-collapse: collapse !important;
+  margin: 16px 0 !important;
+  font-size: 14px !important;
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  border: 2px solid #235E84 !important;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+}
+
+.tony-message-bubble th {
+  background-color: #235E84 !important;
+  color: #ffffff !important;
+  padding: 12px 15px !important;
+  text-align: left !important;
+  font-weight: 700 !important;
+  border-bottom: 2px solid #1a4c6e !important;
+}
+
+.tony-message-bubble td {
+  background-color: #ffffff !important;
+  color: #334155 !important;
+  padding: 12px 15px !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  border-right: 1px solid #e2e8f0 !important;
+  line-height: 1.5 !important;
+}
+
+.tony-message-bubble tr:nth-child(even) td {
+  background-color: #f8fafc !important;
+}
+
+.tony-message-bubble tr:last-child td {
+  border-bottom: none !important;
+}
+
+/* User message table styles */
+.tony-message[style*="row-reverse"] .tony-message-bubble table {
+  background-color: rgba(255,255,255,0.1) !important;
+  border-color: rgba(255,255,255,0.3) !important;
+}
+
+.tony-message[style*="row-reverse"] .tony-message-bubble th {
+  background-color: rgba(255,255,255,0.2) !important;
+  color: #ffffff !important;
+}
+
+.tony-message[style*="row-reverse"] .tony-message-bubble td {
+  background-color: transparent !important;
+  color: #ffffff !important;
+  border-color: rgba(255,255,255,0.2) !important;
+}
+
+.tony-message[style*="row-reverse"] .tony-message-bubble tr:nth-child(even) td {
+  background-color: rgba(255,255,255,0.05) !important;
+}
+`}</style>
 
       <div
         className="tony-main-container"
@@ -712,7 +792,7 @@ export default function TonyAIPage() {
                   },
                   {
                     name: "Daniele AI",
-                    img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Daniel-AI-career-advisor.png",
+                    img: "https://www.ai-scaleup.com/wp-content/uploads/2025/11/daniele_ai_direct_response_copywriter.png",
                     link: "/dashboard/daniele-ai",
                   },
                   {

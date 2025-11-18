@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react"
 import { UserButton } from "@clerk/nextjs"
 import Link from "next/link"
 import { Home } from 'lucide-react'
+import { marked } from 'marked'
 
 export default function AladinoAI() {
   const [messages, setMessages] = useState<Array<{ text: string; sender: "ai" | "user"; time: string; raw?: string }>>([
@@ -145,8 +146,26 @@ export default function AladinoAI() {
   }
 
   const formatMessageText = (text: string) => {
-    let formatted = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    if (!text) return ''
 
+    // Detect if text contains a markdown table
+    const hasTable = /\|.*\|.*\n\s*\|[\s\-:]+\|/m.test(text)
+
+    if (hasTable) {
+      // Use marked for table rendering - Only valid options for current version
+      try {
+        marked.setOptions({
+          gfm: true,
+          breaks: true
+        })
+        return marked.parse(text) as string
+      } catch (e) {
+        console.error("Marked parsing error:", e)
+      }
+    }
+
+    // Basic formatting for non-table content
+    let formatted = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     formatted = formatted.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     formatted = formatted.replace(/\*(.+?)\*/g, "<em>$1</em>")
     formatted = formatted.replace(
@@ -154,11 +173,10 @@ export default function AladinoAI() {
       '<code style="background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 4px; font-family: monospace;">$1</code>',
     )
     formatted = formatted.replace(
-      /\[([^\]]+?)\]\$\$(https?:\/\/[^\s)]+)\$\$/g,
+      /\[([^\]]+?)\]\((https?:\/\/[^\s)]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #235E84; text-decoration: underline;">$1</a>',
     )
     formatted = formatted.replace(/\n/g, "<br>")
-
     return formatted
   }
 
@@ -353,7 +371,7 @@ export default function AladinoAI() {
     <>
       <style jsx global>{`
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        
+       
         :root {
           --background: #ffffff;
           --foreground: #475569;
@@ -373,13 +391,13 @@ export default function AladinoAI() {
           --border: #e2e8f0;
           --radius: 12px;
         }
-        
+       
         body {
           font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           background: var(--background);
           color: var(--foreground);
         }
-        
+       
         .aladino-container {
           width: 100vw;
           height: 100vh;
@@ -387,7 +405,7 @@ export default function AladinoAI() {
           overflow: hidden;
           background: var(--background);
         }
-        
+       
         .aladino-sidebar {
           width: 320px;
           min-width: 320px;
@@ -397,33 +415,32 @@ export default function AladinoAI() {
           flex-direction: column;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        
+       
         .aladino-sidebar.hidden {
           width: 0;
           min-width: 0;
           overflow: hidden;
           border-right: none;
         }
-        
+       
         .aladino-sidebar-header {
           padding: 20px;
           border-bottom: 1px solid var(--sidebar-border);
         }
-        
+       
         .aladino-brand-header {
           display: flex;
           align-items: center;
           justify-content: space-between;
           margin-bottom: 24px;
         }
-        
+       
         .aladino-brand-section {
           display: flex;
           align-items: center;
           gap: 12px;
         }
-        
-        /* Added styles for sidebar close button */
+       
         .aladino-sidebar-close-btn {
           display: none;
           background: transparent;
@@ -438,12 +455,12 @@ export default function AladinoAI() {
           justify-content: center;
           padding: 0;
         }
-        
+       
         .aladino-sidebar-close-btn:hover {
           background: var(--muted);
           color: var(--primary);
         }
-        
+       
         .aladino-profile-avatar {
           width: 40px;
           height: 40px;
@@ -454,20 +471,20 @@ export default function AladinoAI() {
           overflow: hidden;
           background: var(--primary);
         }
-        
+       
         .aladino-profile-avatar img {
           width: 100%;
           height: 100%;
           object-fit: cover;
         }
-        
+       
         .aladino-brand-title {
           font-family: 'Montserrat', sans-serif;
           font-size: 20px;
           font-weight: 600;
           color: var(--sidebar-foreground);
         }
-        
+       
         .aladino-new-chat-button {
           background: var(--primary);
           border: none;
@@ -484,12 +501,12 @@ export default function AladinoAI() {
           transition: all 0.2s ease;
           width: 100%;
         }
-        
+       
         .aladino-new-chat-button:hover {
           background: var(--accent);
           transform: translateY(-1px);
         }
-        
+       
         .aladino-memory-toggle {
           display: flex;
           align-items: center;
@@ -499,20 +516,20 @@ export default function AladinoAI() {
           font-weight: 500;
           color: var(--sidebar-foreground);
         }
-        
+       
         .aladino-switch {
           position: relative;
           display: inline-block;
           width: 44px;
           height: 24px;
         }
-        
+       
         .aladino-switch input {
           opacity: 0;
           width: 0;
           height: 0;
         }
-        
+       
         .aladino-slider {
           position: absolute;
           cursor: pointer;
@@ -524,7 +541,7 @@ export default function AladinoAI() {
           transition: 0.4s;
           border-radius: 24px;
         }
-        
+       
         .aladino-slider:before {
           position: absolute;
           content: "";
@@ -536,15 +553,15 @@ export default function AladinoAI() {
           transition: 0.4s;
           border-radius: 50%;
         }
-        
+       
         .aladino-switch input:checked + .aladino-slider {
           background-color: var(--primary);
         }
-        
+       
         .aladino-switch input:checked + .aladino-slider:before {
           transform: translateX(20px);
         }
-        
+       
         .aladino-sidebar-content {
           flex: 1;
           display: flex;
@@ -552,14 +569,14 @@ export default function AladinoAI() {
           overflow: hidden;
           min-height: 0;
         }
-        
+       
         .aladino-chat-list-wrapper {
           flex: 0 1 auto;
           max-height: 40%;
           overflow-y: auto;
           padding: 16px 20px;
         }
-        
+       
         .aladino-chat-item {
           padding: 16px;
           border-radius: 8px;
@@ -570,32 +587,32 @@ export default function AladinoAI() {
           justify-content: space-between;
           align-items: center;
         }
-        
+       
         .aladino-chat-item:hover {
           background: var(--sidebar-primary);
         }
-        
+       
         .aladino-chat-item.active {
           background: var(--secondary);
           color: var(--secondary-foreground);
         }
-        
+       
         .aladino-chat-item-content {
           flex: 1;
         }
-        
+       
         .aladino-chat-item-title {
           font-weight: 500;
           font-size: 14px;
           color: var(--sidebar-foreground);
           margin-bottom: 4px;
         }
-        
+       
         .aladino-chat-item-subtitle {
           font-size: 12px;
           color: var(--muted-foreground);
         }
-        
+       
         .aladino-delete-btn {
           opacity: 0;
           background: #ef4444;
@@ -611,15 +628,15 @@ export default function AladinoAI() {
           transition: all 0.2s ease;
           font-size: 12px;
         }
-        
+       
         .aladino-chat-item:hover .aladino-delete-btn {
           opacity: 1;
         }
-        
+       
         .aladino-delete-btn:hover {
           background: #dc2626;
         }
-        
+       
         .aladino-agents-section {
           flex: 1;
           min-height: 0;
@@ -629,7 +646,7 @@ export default function AladinoAI() {
           flex-direction: column;
           overflow: hidden;
         }
-        
+       
         .aladino-agents-title {
           font-family: 'Montserrat', sans-serif;
           font-size: 16px;
@@ -638,7 +655,7 @@ export default function AladinoAI() {
           margin-bottom: 16px;
           flex-shrink: 0;
         }
-        
+       
         .aladino-agents-list {
           flex: 1;
           min-height: 0;
@@ -647,7 +664,7 @@ export default function AladinoAI() {
           flex-direction: column;
           gap: 8px;
         }
-        
+       
         .aladino-agent-item {
           display: flex;
           align-items: center;
@@ -658,11 +675,11 @@ export default function AladinoAI() {
           color: var(--sidebar-foreground);
           transition: background-color 0.2s ease;
         }
-        
+       
         .aladino-agent-item:hover {
           background-color: var(--sidebar-primary);
         }
-        
+       
         .aladino-agent-avatar {
           width: 32px;
           height: 32px;
@@ -674,25 +691,25 @@ export default function AladinoAI() {
           overflow: hidden;
           flex-shrink: 0;
         }
-        
+       
         .aladino-agent-avatar img {
           width: 100%;
           height: 100%;
           object-fit: cover;
         }
-        
+       
         .aladino-agent-name {
           font-size: 14px;
           font-weight: 500;
         }
-        
+       
         .aladino-main {
           flex: 1;
           display: flex;
           flex-direction: column;
           background: var(--background);
         }
-        
+       
         .aladino-header {
           background: #235E84;
           color: #ffffff;
@@ -703,19 +720,19 @@ export default function AladinoAI() {
           justify-content: space-between;
           min-height: 80px;
         }
-        
+       
         .aladino-header-left {
           display: flex;
           align-items: center;
           gap: 16px;
         }
-        
+       
         .aladino-header-right {
           display: flex;
           align-items: center;
           gap: 12px;
         }
-        
+       
         .aladino-toggle-btn {
           background: rgba(255, 255, 255, 0.1);
           border: 1px solid rgba(255, 255, 255, 0.2);
@@ -728,18 +745,18 @@ export default function AladinoAI() {
           align-items: center;
           justify-content: center;
         }
-        
+       
         .aladino-toggle-btn:hover {
           background: rgba(255, 255, 255, 0.2);
         }
-        
+       
         .aladino-title {
           font-family: 'Montserrat', sans-serif;
           font-size: 20px;
           font-weight: 600;
           color: #ffffff;
         }
-        
+       
         .aladino-home-btn {
           background: rgba(255, 255, 255, 0.1);
           border: 1px solid rgba(255, 255, 255, 0.2);
@@ -752,11 +769,11 @@ export default function AladinoAI() {
           align-items: center;
           justify-content: center;
         }
-        
+       
         .aladino-home-btn:hover {
           background: rgba(255, 255, 255, 0.2);
         }
-        
+       
         .aladino-user-btn {
           width: 40px;
           height: 40px;
@@ -766,14 +783,14 @@ export default function AladinoAI() {
           align-items: center;
           justify-content: center;
         }
-        
+       
         .aladino-messages {
           flex: 1;
           overflow-y: auto;
           padding: 50px 80px;
           background: var(--background);
         }
-        
+       
         .aladino-message {
           margin-bottom: 32px;
           display: flex;
@@ -782,7 +799,7 @@ export default function AladinoAI() {
           animation: fadeInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
           max-width: 90%;
         }
-        
+       
         @keyframes fadeInUp {
           from {
             opacity: 0;
@@ -793,12 +810,12 @@ export default function AladinoAI() {
             transform: translateY(0);
           }
         }
-        
+       
         .aladino-message.user {
           flex-direction: row-reverse;
           margin-left: auto;
         }
-        
+       
         .aladino-message-avatar {
           width: 40px;
           height: 40px;
@@ -811,23 +828,23 @@ export default function AladinoAI() {
           flex-shrink: 0;
           overflow: hidden;
         }
-        
+       
         .aladino-message-avatar img {
           width: 100%;
           height: 100%;
           object-fit: cover;
         }
-        
+       
         .aladino-message.ai .aladino-message-avatar {
           background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
           color: var(--primary-foreground);
         }
-        
+       
         .aladino-message.user .aladino-message-avatar {
           background: var(--secondary);
           color: var(--secondary-foreground);
         }
-        
+       
         .aladino-message-content {
           flex: 1;
           background: #ffffff;
@@ -836,39 +853,39 @@ export default function AladinoAI() {
           border: 1px solid var(--border);
           min-width: 200px;
         }
-        
+       
         .aladino-message.user .aladino-message-content {
           background: #235E84;
           color: #ffffff;
           border-color: #235E84;
         }
-        
+       
         .aladino-message-text {
           color: var(--card-foreground);
           line-height: 1.6;
           font-size: 15px;
         }
-        
+       
         .aladino-message.user .aladino-message-text {
           color: #ffffff;
         }
-        
+       
         .aladino-message-time {
           font-size: 12px;
           color: var(--muted-foreground);
           margin-top: 8px;
         }
-        
+       
         .aladino-message.user .aladino-message-time {
           color: rgba(255, 255, 255, 0.7);
         }
-        
+       
         .aladino-thinking-dots {
           display: flex;
           align-items: center;
           gap: 5px;
         }
-        
+       
         .aladino-thinking-dots .dot {
           width: 8px;
           height: 8px;
@@ -876,15 +893,15 @@ export default function AladinoAI() {
           border-radius: 50%;
           animation: typing 1.4s infinite ease-in-out both;
         }
-        
+       
         .aladino-thinking-dots .dot:nth-child(2) {
           animation-delay: 0.2s;
         }
-        
+       
         .aladino-thinking-dots .dot:nth-child(3) {
           animation-delay: 0.4s;
         }
-        
+       
         @keyframes typing {
           0%, 60%, 100% {
             transform: translateY(0);
@@ -895,13 +912,73 @@ export default function AladinoAI() {
             opacity: 1;
           }
         }
-        
+
+        .aladino-message-content table {
+          width: 100% !important;
+          display: table !important;
+          border-collapse: collapse !important;
+          margin: 16px 0 !important;
+          font-size: 14px !important;
+          background-color: #ffffff !important;
+          color: #1e293b !important;
+          border-radius: 8px !important;
+          overflow: hidden !important;
+          border: 2px solid #235E84 !important;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+        }
+
+        .aladino-message-content th {
+          background-color: #235E84 !important;
+          color: #ffffff !important;
+          padding: 12px 15px !important;
+          text-align: left !important;
+          font-weight: 700 !important;
+          border-bottom: 2px solid #1a4c6e !important;
+        }
+
+        .aladino-message-content td {
+          background-color: #ffffff !important;
+          color: #334155 !important;
+          padding: 12px 15px !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+          border-right: 1px solid #e2e8f0 !important;
+          line-height: 1.5 !important;
+        }
+
+        .aladino-message-content tr:nth-child(even) td {
+          background-color: #f8fafc !important;
+        }
+
+        .aladino-message-content tr:last-child td {
+          border-bottom: none !important;
+        }
+
+        .aladino-message.user .aladino-message-content table {
+          background-color: rgba(255,255,255,0.1) !important;
+          border-color: rgba(255,255,255,0.3) !important;
+        }
+
+        .aladino-message.user .aladino-message-content th {
+          background-color: rgba(255,255,255,0.2) !important;
+          color: #ffffff !important;
+        }
+
+        .aladino-message.user .aladino-message-content td {
+          background-color: transparent !important;
+          color: #ffffff !important;
+          border-color: rgba(255,255,255,0.2) !important;
+        }
+
+        .aladino-message.user .aladino-message-content tr:nth-child(even) td {
+          background-color: rgba(255,255,255,0.05) !important;
+        }
+       
         .aladino-input-container {
           padding: 30px 80px;
           border-top: 1px solid var(--border);
           background: var(--background);
         }
-        
+       
         .aladino-input-wrapper {
           display: flex;
           align-items: flex-end;
@@ -912,12 +989,12 @@ export default function AladinoAI() {
           padding: 12px 16px;
           transition: all 0.2s ease;
         }
-        
+       
         .aladino-input-wrapper:focus-within {
           border-color: var(--primary);
           box-shadow: 0 0 0 3px rgba(35, 94, 132, 0.1);
         }
-        
+       
         .aladino-file-btn {
           background: transparent;
           border: none;
@@ -932,12 +1009,12 @@ export default function AladinoAI() {
           transition: all 0.2s ease;
           flex-shrink: 0;
         }
-        
+       
         .aladino-file-btn:hover {
           background: var(--muted);
           color: var(--primary);
         }
-        
+       
         .aladino-input {
           flex: 1;
           border: none;
@@ -950,11 +1027,11 @@ export default function AladinoAI() {
           max-height: 120px;
           font-family: inherit;
         }
-        
+       
         .aladino-input::placeholder {
           color: var(--muted-foreground);
         }
-        
+       
         .aladino-send-btn {
           background: var(--primary);
           border: none;
@@ -969,74 +1046,68 @@ export default function AladinoAI() {
           transition: all 0.2s ease;
           flex-shrink: 0;
         }
-        
+       
         .aladino-send-btn:hover:not(:disabled) {
           background: var(--accent);
           transform: scale(1.05);
         }
-        
+       
         .aladino-send-btn:disabled {
           background: var(--muted);
           color: var(--muted-foreground);
           cursor: not-allowed;
         }
-        
-        /* Custom scrollbar styling */
+       
         .aladino-chat-list-wrapper::-webkit-scrollbar,
         .aladino-agents-list::-webkit-scrollbar {
           width: 6px;
         }
-        
+       
         .aladino-chat-list-wrapper::-webkit-scrollbar-track,
         .aladino-agents-list::-webkit-scrollbar-track {
           background: transparent;
         }
-        
+       
         .aladino-chat-list-wrapper::-webkit-scrollbar-thumb,
         .aladino-agents-list::-webkit-scrollbar-thumb {
           background: var(--border);
           border-radius: 3px;
         }
-        
+       
         .aladino-chat-list-wrapper::-webkit-scrollbar-thumb:hover,
         .aladino-agents-list::-webkit-scrollbar-thumb:hover {
           background: var(--muted-foreground);
         }
-        
-        /* Added responsive breakpoints for all screen sizes */
-        
-        /* Tablet and smaller devices (max-width: 1024px) */
+       
         @media (max-width: 1024px) {
           .aladino-sidebar {
             width: 280px;
             min-width: 280px;
           }
-          
+         
           .aladino-header {
             padding: 16px 24px;
             min-height: 70px;
           }
-          
+         
           .aladino-title {
             font-size: 18px;
           }
-          
+         
           .aladino-messages {
             padding: 40px 40px;
           }
-          
+         
           .aladino-input-container {
             padding: 20px 40px;
           }
-          
+         
           .aladino-message {
             max-width: 95%;
           }
         }
-        
-        /* Mobile devices (max-width: 768px) */
+       
         @media (max-width: 768px) {
-          /* Added mobile menu bar button styles */
           .aladino-mobile-menu-btn {
             display: flex;
             background: rgba(255, 255, 255, 0.1);
@@ -1049,25 +1120,23 @@ export default function AladinoAI() {
             align-items: center;
             justify-content: center;
           }
-          
+         
           .aladino-mobile-menu-btn:hover {
             background: rgba(255, 255, 255, 0.2);
           }
-          
-          /* Show close button on mobile sidebar */
+         
           .aladino-sidebar-close-btn {
             display: flex;
           }
-          
-          /* Show hamburger menu on mobile, hide toggle button */
+         
           .aladino-mobile-menu-btn {
             display: flex;
           }
-          
+         
           .aladino-toggle-btn {
             display: none;
           }
-          
+         
           .aladino-sidebar {
             position: fixed;
             top: 0;
@@ -1078,16 +1147,16 @@ export default function AladinoAI() {
             z-index: 1000;
             box-shadow: 2px 0 12px rgba(0, 0, 0, 0.15);
           }
-          
+         
           .aladino-sidebar.hidden {
             transform: translateX(-100%);
           }
-          
+         
           .aladino-header {
             padding: 12px 16px;
             min-height: 60px;
           }
-          
+         
           .aladino-title {
             font-size: 16px;
             white-space: nowrap;
@@ -1095,185 +1164,183 @@ export default function AladinoAI() {
             text-overflow: ellipsis;
             max-width: 180px;
           }
-          
+         
           .aladino-messages {
             padding: 24px 16px;
           }
-          
+         
           .aladino-input-container {
             padding: 16px;
           }
-          
+         
           .aladino-message {
             gap: 12px;
             margin-bottom: 24px;
             max-width: 100%;
           }
-          
+         
           .aladino-message-avatar {
             width: 32px;
             height: 32px;
             font-size: 12px;
           }
-          
+         
           .aladino-message-content {
             padding: 16px;
           }
-          
+         
           .aladino-message-text {
             font-size: 14px;
           }
-          
+         
           .aladino-input-wrapper {
             padding: 10px 12px;
           }
-          
+         
           .aladino-input {
             font-size: 14px;
           }
-          
+         
           .aladino-send-btn,
           .aladino-file-btn {
             width: 36px;
             height: 36px;
           }
         }
-        
-        /* Small mobile devices (max-width: 480px) */
+       
         @media (max-width: 480px) {
           .aladino-sidebar {
             max-width: 280px;
           }
-          
+         
           .aladino-sidebar-header {
             padding: 16px;
           }
-          
+         
           .aladino-brand-title {
             font-size: 18px;
           }
-          
+         
           .aladino-profile-avatar {
             width: 36px;
             height: 36px;
           }
-          
+         
           .aladino-new-chat-button {
             padding: 12px 16px;
             font-size: 13px;
           }
-          
+         
           .aladino-header {
             padding: 10px 12px;
             min-height: 56px;
           }
-          
+         
           .aladino-title {
             font-size: 14px;
             max-width: 140px;
           }
-          
+         
           .aladino-home-btn,
           .aladino-toggle-btn {
             width: 36px;
             height: 36px;
             padding: 8px;
           }
-          
+         
           .aladino-user-btn {
             width: 36px;
             height: 36px;
           }
-          
+         
           .aladino-messages {
             padding: 16px 12px;
           }
-          
+         
           .aladino-message {
             gap: 8px;
             margin-bottom: 20px;
           }
-          
+         
           .aladino-message-avatar {
             width: 28px;
             height: 28px;
           }
-          
+         
           .aladino-message-content {
             padding: 12px 14px;
           }
-          
+         
           .aladino-message-text {
             font-size: 13px;
           }
-          
+         
           .aladino-message-time {
             font-size: 11px;
           }
-          
+         
           .aladino-input-container {
             padding: 12px;
           }
-          
+         
           .aladino-input-wrapper {
             padding: 8px 10px;
           }
-          
+         
           .aladino-input {
             font-size: 13px;
           }
-          
+         
           .aladino-send-btn,
           .aladino-file-btn {
             width: 32px;
             height: 32px;
           }
-          
+         
           .aladino-chat-list-wrapper,
           .aladino-agents-section {
             padding: 12px 16px;
           }
-          
+         
           .aladino-chat-item {
             padding: 12px;
           }
-          
+         
           .aladino-chat-item-title {
             font-size: 13px;
           }
-          
+         
           .aladino-chat-item-subtitle {
             font-size: 11px;
           }
-          
+         
           .aladino-agent-item {
             padding: 8px 10px;
           }
-          
+         
           .aladino-agent-avatar {
             width: 28px;
             height: 28px;
           }
-          
+         
           .aladino-agent-name {
             font-size: 13px;
           }
         }
-        
-        /* Extra small devices (max-width: 360px) */
+       
         @media (max-width: 360px) {
           .aladino-title {
             max-width: 100px;
           }
-          
+         
           .aladino-header-right {
             gap: 8px;
           }
-          
+         
           .aladino-message-content {
             padding: 10px 12px;
           }
-          
+         
           .aladino-message-text {
             font-size: 12px;
           }
@@ -1434,7 +1501,7 @@ export default function AladinoAI() {
                 <a href="/dashboard/daniele-ai" target="_blank" rel="noopener noreferrer" className="aladino-agent-item">
                   <div className="aladino-agent-avatar">
                     <img
-                      src="https://www.ai-scaleup.com/wp-content/uploads/2024/11/Gary-AI-SMMg-icon.png"
+                      src="https://www.ai-scaleup.com/wp-content/uploads/2025/11/daniele_ai_direct_response_copywriter.png"
                       alt="Daniele ai"
                     />
                   </div>

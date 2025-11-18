@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { Home } from 'lucide-react'
 import { UserButton } from "@clerk/nextjs"
+import { marked } from 'marked'
 
 interface Message {
   text: string
@@ -362,7 +363,7 @@ export default function SimoneAI() {
     <>
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&family=Open+Sans:wght@400;500;600&display=swap');
-        
+       
         body {
           margin: 0;
           padding: 0;
@@ -858,7 +859,7 @@ export default function SimoneAI() {
                       }}
                     >
                       <img
-                        src="https://www.ai-scaleup.com/wp-content/uploads/2024/11/Gary-AI-SMMg-icon.png"
+                        src="https://www.ai-scaleup.com/wp-content/uploads/2025/11/daniele_ai_direct_response_copywriter.png"
                         alt="Daniele"
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                       />
@@ -1057,6 +1058,7 @@ export default function SimoneAI() {
                   )}
                 </div>
                 <div
+                  className="simone-message-bubble"
                   style={{
                     flex: 1,
                     background: message.sender === "user" ? "#235E84" : "#ffffff",
@@ -1264,7 +1266,75 @@ export default function SimoneAI() {
             padding: 8px !important;
           }
         }
+
+        /* Table styling for markdown tables */
+        .simone-message-bubble table {
+          width: 100% !important;
+          display: table !important;
+          border-collapse: collapse !important;
+          margin: 16px 0 !important;
+          font-size: 14px !important;
+          background-color: #ffffff !important;
+          color: #1e293b !important;
+          border-radius: 8px !important;
+          overflow: hidden !important;
+          border: 2px solid #235E84 !important;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+        }
+
+        .simone-message-bubble th {
+          background-color: #235E84 !important;
+          color: #ffffff !important;
+          padding: 12px 15px !important;
+          text-align: left !important;
+          font-weight: 700 !important;
+          border-bottom: 2px solid #1a4c6e !important;
+        }
+
+        .simone-message-bubble td {
+          background-color: #ffffff !important;
+          color: #334155 !important;
+          padding: 12px 15px !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+          border-right: 1px solid #e2e8f0 !important;
+          line-height: 1.5 !important;
+        }
+
+        .simone-message-bubble tr:nth-child(even) td {
+          background-color: #f8fafc !important;
+        }
+
+        .simone-message-bubble tr:last-child td {
+          border-bottom: none !important;
+        }
+
+        div[style*="background: rgb(35, 94, 132)"] .simone-message-bubble table,
+        div[style*="background: #235E84"] .simone-message-bubble table {
+          background-color: rgba(255,255,255,0.1) !important;
+          border-color: rgba(255,255,255,0.3) !important;
+        }
+
+        div[style*="background: rgb(35, 94, 132)"] .simone-message-bubble th,
+        div[style*="background: #235E84"] .simone-message-bubble th {
+          background-color: rgba(255,255,255,0.2) !important;
+          color: #ffffff !important;
+        }
+
+        div[style*="background: rgb(35, 94, 132)"] .simone-message-bubble td,
+        div[style*="background: #235E84"] .simone-message-bubble td {
+          background-color: transparent !important;
+          color: #ffffff !important;
+          border-color: rgba(255,255,255,0.2) !important;
+        }
+
+        div[style*="background: rgb(35, 94, 132)"] .simone-message-bubble tr:nth-child(even) td,
+        div[style*="background: #235E84"] .simone-message-bubble tr:nth-child(even) td {
+          background-color: rgba(255,255,255,0.05) !important;
+        }
       `}</style>
     </>
   )
 }
+
+
+

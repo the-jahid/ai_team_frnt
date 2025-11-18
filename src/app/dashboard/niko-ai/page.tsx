@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { UserButton } from "@clerk/nextjs"
 import { Home } from 'lucide-react'
+import { marked } from 'marked'
 
 interface Message {
   text: string
@@ -94,8 +95,29 @@ export default function NikoAI() {
   }
 
   const formatMessageText = (text: string) => {
-    let formatted = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    if (!text) return ''
 
+    // Detect if text contains a markdown table
+    const hasTable = /\|.*\|.*\n\s*\|[\s\-:]+\|/m.test(text)
+
+    if (hasTable) {
+      // Use marked for table rendering
+      try {
+        marked.setOptions({
+          gfm: true,
+          breaks: true
+        })
+        const parsed = marked.parse(text) as string
+        console.log('Marked parsed table:', parsed)
+        return parsed
+      } catch (e) {
+        console.error("Marked parsing error:", e)
+        return text.replace(/\n/g, "<br>")
+      }
+    }
+
+    // Basic formatting for non-table content
+    let formatted = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     formatted = formatted.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     formatted = formatted.replace(/\*(.+?)\*/g, "<em>$1</em>")
     formatted = formatted.replace(
@@ -107,7 +129,6 @@ export default function NikoAI() {
       '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #235E84; text-decoration: underline;">$1</a>',
     )
     formatted = formatted.replace(/\n/g, "<br>")
-
     return formatted
   }
 
@@ -1141,6 +1162,68 @@ export default function NikoAI() {
             width: 4px;
           }
         }
+
+        /* Table styling for markdown tables */
+        .niko-message-bubble table {
+          width: 100% !important;
+          display: table !important;
+          border-collapse: collapse !important;
+          margin: 16px 0 !important;
+          font-size: 14px !important;
+          background-color: #ffffff !important;
+          color: #1e293b !important;
+          border-radius: 8px !important;
+          overflow: hidden !important;
+          border: 2px solid #235E84 !important;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+        }
+
+        .niko-message-bubble th {
+          background-color: #235E84 !important;
+          color: #ffffff !important;
+          padding: 12px 15px !important;
+          text-align: left !important;
+          font-weight: 700 !important;
+          border-bottom: 2px solid #1a4c6e !important;
+        }
+
+        .niko-message-bubble td {
+          background-color: #ffffff !important;
+          color: #334155 !important;
+          padding: 12px 15px !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+          border-right: 1px solid #e2e8f0 !important;
+          line-height: 1.5 !important;
+        }
+
+        .niko-message-bubble tr:nth-child(even) td {
+          background-color: #f8fafc !important;
+        }
+
+        .niko-message-bubble tr:last-child td {
+          border-bottom: none !important;
+        }
+
+        /* User message table styles */
+        .niko-message.user .niko-message-bubble table {
+          background-color: rgba(255,255,255,0.1) !important;
+          border-color: rgba(255,255,255,0.3) !important;
+        }
+
+        .niko-message.user .niko-message-bubble th {
+          background-color: rgba(255,255,255,0.2) !important;
+          color: #ffffff !important;
+        }
+
+        .niko-message.user .niko-message-bubble td {
+          background-color: transparent !important;
+          color: #ffffff !important;
+          border-color: rgba(255,255,255,0.2) !important;
+        }
+
+        .niko-message.user .niko-message-bubble tr:nth-child(even) td {
+          background-color: rgba(255,255,255,0.05) !important;
+        }
       `}</style>
 
       <div className="niko-container">
@@ -1257,7 +1340,7 @@ export default function NikoAI() {
                 <a href="/dashboard/mike-ai" target="_blank" rel="noopener noreferrer" className="niko-agent-item">
                   <div className="niko-agent-avatar">
                     <img
-                      src="https://www.ai-scaleup.com/wp-content/uploads/2024/11/Gary-AI-SMMg-icon.png"
+                      src="https://www.shutterstock.com/image-vector/vector-flat-illustration-grayscale-avatar-600nw-2264922221.jpg"
                       alt="Mike"
                     />
                   </div>
@@ -1275,7 +1358,7 @@ export default function NikoAI() {
                 <a href="/dashboard/daniele-ai" target="_blank" rel="noopener noreferrer" className="niko-agent-item">
                   <div className="niko-agent-avatar">
                     <img
-                      src="https://www.ai-scaleup.com/wp-content/uploads/2024/11/Gary-AI-SMMg-icon.png"
+                      src="https://www.ai-scaleup.com/wp-content/uploads/2025/11/daniele_ai_direct_response_copywriter.png"
                       alt="Daniele"
                     />
                   </div>
@@ -1372,7 +1455,7 @@ export default function NikoAI() {
                     />
                   )}
                 </div>
-                <div className="niko-message-content">
+                <div className="niko-message-content niko-message-bubble">
                   <div className="niko-message-text">
                     {message.text === "" && message.time === "" ? (
                       <div className="niko-thinking-dots">

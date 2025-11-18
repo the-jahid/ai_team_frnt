@@ -1,8 +1,16 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Card } from "@/components/ui/card"
-import { currentUser } from "@clerk/nextjs/server"
-import { UserButton } from "@clerk/nextjs"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { useUser } from "@clerk/nextjs"
 
 /* ---------------------------- API base URL ---------------------------- */
 
@@ -11,15 +19,10 @@ const API_BASE =
 
 /* ------------------------------ Types ------------------------------ */
 
-// /admin/selected-agents -> string[] (["NIKO", "ALADINO", ...])
-type AssignedAgentName = string
-
-// /admin/group-assignments -> array di assegnazioni con dentro il group
 interface AgentGroup {
   id: string
   name: string
   description?: string | null
-  // se un giorno aggiungi "slug" nel backend lo puoi usare qui
   slug?: string | null
 }
 
@@ -31,8 +34,25 @@ interface GroupAssignment {
   group?: AgentGroup
 }
 
+interface GroupAgentsResponse {
+  group: {
+    id: string
+    name: string
+    isActive: boolean
+  }
+  agents: string[]
+  count: number
+}
+
+interface GroupAgent {
+  id: string
+  groupId: string
+  agentName: string
+  isActive: boolean
+}
+
 type UiAgent = {
-  key: string // deve combaciare con l'enum (ALEX, MIKE, NIKO, ...)
+  key: string
   name: string
   role: string
   image: string
@@ -59,7 +79,7 @@ const agents: UiAgent[] = [
     href: "/dashboard/tony-ai",
   },
   {
-    key: "ALADINO", // usa esattamente il valore che hai in enum
+    key: "ALADINO",
     name: "Aladino AI",
     role: "Creatore di nuove offerte e prodotti",
     image:
@@ -122,7 +142,6 @@ const agents: UiAgent[] = [
       "https://www.ai-scaleup.com/wp-content/uploads/2025/11/daniele_ai_direct_response_copywriter.png",
     href: "/dashboard/daniele-ai",
   },
-  // Test agents – collegati alle pagine che hai nello screenshot
   {
     key: "TEST_MIKE",
     name: "Test Mike AI",
@@ -149,158 +168,198 @@ const agents: UiAgent[] = [
   },
 ]
 
-/* ------------------------- Helpers ------------------------- */
+/* -------------------------------- Page Component -------------------------------- */
 
-// Se nel futuro hai un campo slug nel group, usalo; altrimenti
-// creiamo uno slug dal nome: "Test Alex AI" -> "test-alex-ai"
-function getGroupHref(group: AgentGroup): string {
-  if (group.slug) {
-    return `/dashboard/${group.slug}`
+export default function HomePage() {
+  const { user, isLoaded } = useUser()
+  const [email, setEmail] = useState<string>("")
+  const [assignedAgentNames, setAssignedAgentNames] = useState<string[]>([])
+  const [assignedGroups, setAssignedGroups] = useState<GroupAssignment[]>([])
+  const [selectedGroup, setSelectedGroup] = useState<AgentGroup | null>(null)
+  const [groupAgents, setGroupAgents] = useState<UiAgent[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isModalLoading, setIsModalLoading] = useState(false)
+
+  useEffect(() => {
+    async function fetchData() {
+      if (!isLoaded) return
+      
+      if (!user?.primaryEmailAddress?.emailAddress) {
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        const userEmail = user.primaryEmailAddress.emailAddress
+        setEmail(userEmail)
+
+        console.log("[v0] Fetching data for user:", userEmail)
+
+        // Fetch assigned agents
+        const agentsRes = await fetch(
+          `${API_BASE}/admin/selected-agents?email=${encodeURIComponent(userEmail)}`,
+          { cache: "no-store" }
+        )
+        if (agentsRes.ok) {
+          const agentsData = await agentsRes.json()
+          console.log("[v0] Assigned agents:", agentsData)
+          setAssignedAgentNames(agentsData)
+        }
+
+        // Fetch assigned groups
+        const groupsRes = await fetch(
+          `${API_BASE}/admin/group-assignments?email=${encodeURIComponent(
+            userEmail
+          )}&activeOnly=true`,
+          { cache: "no-store" }
+        )
+        if (groupsRes.ok) {
+          const groupsData = await groupsRes.json()
+          console.log("[v0] Assigned groups:", groupsData)
+          setAssignedGroups(groupsData)
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [user, isLoaded])
+
+  const handleGroupClick = async (group: AgentGroup) => {
+    setSelectedGroup(group)
+    setIsModalLoading(true)
+
+    try {
+      const response = await fetch(`${API_BASE}/admin/groups/${group.id}/agents`)
+      
+      if (response.ok) {
+        const groupData: GroupAgentsResponse = await response.json()
+        
+        console.log("[v0] Group data:", groupData)
+        
+        // Update the selected group with the name from the API
+        setSelectedGroup({
+          ...group,
+          name: groupData.group.name,
+        })
+        
+        // Map agent IDs to full agent objects
+        const agentIds = groupData.agents
+        const matchedAgents = agents.filter((agent) =>
+          agentIds.includes(agent.key)
+        )
+        
+        console.log("[v0] Matched agents:", matchedAgents)
+        setGroupAgents(matchedAgents)
+      } else {
+        console.error("Failed to fetch group agents")
+        setGroupAgents([])
+      }
+    } catch (error) {
+      console.error("Error fetching group agents:", error)
+      setGroupAgents([])
+    } finally {
+      setIsModalLoading(false)
+    }
   }
 
-  const slug = group.name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-
-  return `/dashboard/${slug}`
-}
-
-/* ------------------------- Fetch helpers (server) ------------------------- */
-
-// /admin/selected-agents?email=...
-async function fetchAssignedAgents(email: string): Promise<AssignedAgentName[]> {
-  const url = `${API_BASE}/admin/selected-agents?email=${encodeURIComponent(
-    email,
-  )}`
-
-  const res = await fetch(url, { cache: "no-store" })
-
-  if (!res.ok) {
-    console.error("Failed to fetch assigned agents", res.status, await res.text())
-    return []
+  const handleCloseModal = () => {
+    setSelectedGroup(null)
+    setGroupAgents([])
   }
 
-  return res.json()
-}
+  const visibleAgents = agents.filter((agent) =>
+    assignedAgentNames.includes(agent.key)
+  )
 
-// /admin/group-assignments?email=...&activeOnly=true
-async function fetchAssignedGroups(email: string): Promise<GroupAssignment[]> {
-  const url = `${API_BASE}/admin/group-assignments?email=${encodeURIComponent(
-    email,
-  )}&activeOnly=true`
-
-  const res = await fetch(url, { cache: "no-store" })
-
-  if (!res.ok) {
-    console.error("Failed to fetch assigned groups", res.status, await res.text())
-    return []
-  }
-
-  return res.json()
-}
-
-/* -------------------------------- Page -------------------------------- */
-
-export default async function HomePage() {
-  const user = await currentUser()
-
-  const email =
-    user?.primaryEmailAddress?.emailAddress ||
-    user?.emailAddresses?.[0]?.emailAddress
-
-  if (!user || !email) {
+  if (isLoading || !isLoaded) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted">
-        <p className="text-base text-muted-foreground">
+      <div className="flex min-h-screen items-center justify-center bg-muted px-4">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (!email) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted px-4">
+        <p className="text-center text-sm text-muted-foreground sm:text-base">
           Devi effettuare il login per vedere i tuoi agenti assegnati.
         </p>
       </div>
     )
   }
 
-  const [assignedAgentNames, assignedGroups] = await Promise.all([
-    fetchAssignedAgents(email),
-    fetchAssignedGroups(email),
-  ])
-
-  // Mostra solo gli agenti il cui "key" è presente nell'array di stringhe ricevuto dall'API
-  const visibleAgents = agents.filter((agent) =>
-    assignedAgentNames.includes(agent.key),
-  )
-
   return (
     <div className="min-h-screen bg-muted">
-      <div className="mx-auto w-[90%] max-w-[1200px] py-10">
+      <div className="mx-auto w-full max-w-[1200px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
         {/* Header Section */}
-        <header className="relative mb-12 rounded-xl bg-[#235E84] px-5 py-[30px] text-center shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05),0_2px_4px_-1px_rgba(0,0,0,0.03)]">
-          {user && (
-            <div className="absolute right-5 top-5">
-              <UserButton />
-            </div>
-          )}
-          <h1 className="mb-2 font-sans text-[36px] font-bold leading-tight text-white">
+        <header className="relative mb-8 rounded-lg bg-[#235E84] px-4 py-6 text-center shadow-sm sm:mb-10 sm:rounded-xl sm:px-6 sm:py-8 md:mb-12 md:px-8 md:py-10 lg:px-10">
+          <h1 className="mb-2 font-sans text-2xl font-bold leading-tight text-white sm:text-3xl md:text-4xl lg:text-[36px]">
             Incontra i tuoi Specialisti AI
           </h1>
-          <p className="text-lg text-white/90">
+          <p className="text-sm text-white/90 sm:text-base md:text-lg">
             Qui trovi solo gli agenti AI e i gruppi che ti sono stati assegnati.
           </p>
         </header>
 
-        {/* Groups Section (assigned groups) */}
         {assignedGroups.length > 0 && (
-          <section className="mb-10">
-            <h2 className="mb-4 font-sans text-2xl font-semibold text-slate-800">
+          <section className="mb-8 sm:mb-10">
+            <h2 className="mb-3 font-sans text-xl font-semibold text-slate-800 sm:mb-4 sm:text-2xl">
               I tuoi Gruppi di Agenti
             </h2>
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-5 lg:grid-cols-3 lg:gap-6 xl:grid-cols-4">
               {assignedGroups.map((assigned) => {
                 if (!assigned.group) return null
 
                 const group = assigned.group
-                const href = getGroupHref(group)
 
                 return (
-                  <Link key={assigned.id} href={href} className="group">
-                    <Card className="flex h-full flex-col justify-between border border-border bg-card p-6 text-left shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05),0_2px_4px_-1px_rgba(0,0,0,0.03)] transition-all duration-300 hover:-translate-y-[5px] hover:shadow-[0_10px_15px_-3px_rgba(0,0,0,0.07),0_4px_6px_-2px_rgba(0,0,0,0.04)]">
+                  <button
+                    key={assigned.id}
+                    onClick={() => handleGroupClick(group)}
+                    className="group text-left"
+                  >
+                    <Card className="flex h-full flex-col justify-between border border-border bg-card p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md sm:p-5 md:p-6 md:hover:-translate-y-[5px] md:hover:shadow-lg">
                       <div>
-                        <h3 className="mb-2 font-sans text-[20px] font-semibold text-card-foreground">
+                        <h3 className="mb-1.5 font-sans text-lg font-semibold text-card-foreground sm:mb-2 sm:text-xl md:text-[20px]">
                           {group.name}
                         </h3>
                         {group.description && (
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-xs text-muted-foreground sm:text-sm">
                             {group.description}
                           </p>
                         )}
                       </div>
-                      <p className="mt-4 text-xs uppercase tracking-wide text-[#235E84]">
+                      <p className="mt-3 text-[10px] uppercase tracking-wide text-[#235E84] sm:mt-4 sm:text-xs">
                         Gruppo di agenti AI
                       </p>
                     </Card>
-                  </Link>
+                  </button>
                 )
               })}
             </div>
           </section>
         )}
 
-        {/* Agents Grid (assigned agents) */}
+        {/* Agents Grid */}
         <section>
-          <h2 className="mb-4 font-sans text-2xl font-semibold text-slate-800">
+          <h2 className="mb-3 font-sans text-xl font-semibold text-slate-800 sm:mb-4 sm:text-2xl">
             I tuoi Agenti AI assegnati
           </h2>
 
           {visibleAgents.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground sm:text-sm">
               Nessun agente AI ti è stato ancora assegnato.
             </p>
           ) : (
-            <main className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <main className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-5 lg:grid-cols-3 lg:gap-6 xl:grid-cols-4 2xl:grid-cols-5">
               {visibleAgents.map((agent) => (
                 <Link key={agent.key} href={agent.href} className="group">
-                  <Card className="overflow-hidden border border-border bg-card shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05),0_2px_4px_-1px_rgba(0,0,0,0.03)] transition-all duration-300 hover:-translate-y-[5px] hover:shadow-[0_10px_15px_-3px_rgba(0,0,0,0.07),0_4px_6px_-2px_rgba(0,0,0,0.04)]">
-                    {/* Agent Avatar */}
+                  <Card className="overflow-hidden border border-border bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md md:hover:-translate-y-[5px] md:hover:shadow-lg">
                     <div className="relative aspect-[16/10] w-full overflow-hidden bg-white">
                       <Image
                         src={agent.image || "/placeholder.svg"}
@@ -310,12 +369,11 @@ export default async function HomePage() {
                       />
                     </div>
 
-                    {/* Agent Info */}
-                    <div className="p-6">
-                      <h3 className="mb-2 font-sans text-[20px] font-semibold text-card-foreground">
+                    <div className="p-4 sm:p-5 md:p-6">
+                      <h3 className="mb-1.5 font-sans text-lg font-semibold text-card-foreground sm:mb-2 sm:text-xl md:text-[20px]">
                         {agent.name}
                       </h3>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs text-muted-foreground sm:text-sm">
                         {agent.role}
                       </p>
                     </div>
@@ -326,6 +384,64 @@ export default async function HomePage() {
           )}
         </section>
       </div>
+
+      <Dialog open={!!selectedGroup} onOpenChange={handleCloseModal}>
+        <DialogContent className="max-h-[90vh] max-w-[95vw] overflow-y-auto sm:max-w-[90vw] md:max-w-4xl lg:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold sm:text-2xl">
+              {selectedGroup?.name}
+            </DialogTitle>
+            {selectedGroup?.description && (
+              <p className="text-xs text-muted-foreground sm:text-sm">
+                {selectedGroup.description}
+              </p>
+            )}
+          </DialogHeader>
+
+          <div className="mt-4 sm:mt-6">
+            {isModalLoading ? (
+              <div className="flex items-center justify-center py-8 sm:py-12">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+              </div>
+            ) : groupAgents.length === 0 ? (
+              <p className="py-6 text-center text-xs text-muted-foreground sm:py-8 sm:text-sm">
+                Nessun agente trovato in questo gruppo.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-5 lg:grid-cols-3 lg:gap-6 xl:grid-cols-4">
+                {groupAgents.map((agent) => (
+                  <Link
+                    key={agent.key}
+                    href={agent.href}
+                    className="group"
+                    onClick={handleCloseModal}
+                  >
+                    <Card className="overflow-hidden border border-border bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md md:hover:-translate-y-[5px] md:hover:shadow-lg">
+                      <div className="relative aspect-[16/10] w-full overflow-hidden bg-white">
+                        <Image
+                          src={agent.image || "/placeholder.svg"}
+                          alt={agent.name}
+                          fill
+                          className="object-contain transition-transform duration-300 group-hover:scale-105"
+                        />
+                      </div>
+
+                      <div className="p-3 sm:p-4">
+                        <h3 className="mb-1 font-sans text-base font-semibold text-card-foreground sm:text-lg md:text-[18px]">
+                          {agent.name}
+                        </h3>
+                        <p className="text-[11px] text-muted-foreground sm:text-xs">
+                          {agent.role}
+                        </p>
+                      </div>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

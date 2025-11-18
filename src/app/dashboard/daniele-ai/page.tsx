@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { UserButton } from "@clerk/nextjs"
 import { Home } from 'lucide-react'
+import { marked } from 'marked'
 
 interface Message {
   text: string
@@ -153,20 +154,37 @@ export default function DanieleAIPage() {
   }
 
   const formatMessageText = (text: string) => {
-    let formatted = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    if (!text) return ''
 
+    // Detect if text contains a markdown table
+    const hasTable = /\|.*\|.*\n\s*\|[\s\-:]+\|/m.test(text)
+
+    if (hasTable) {
+      // Use marked for table rendering
+      try {
+        marked.setOptions({
+          gfm: true,
+          breaks: true
+        })
+        return marked.parse(text) as string
+      } catch (e) {
+        console.error("Marked parsing error:", e)
+      }
+    }
+
+    // Basic formatting for non-table content
+    let formatted = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     formatted = formatted.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     formatted = formatted.replace(/\*(.+?)\*/g, "<em>$1</em>")
     formatted = formatted.replace(
       /`([^`]+?)`/g,
-      '<code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: monospace;">$1</code>',
+      '<code style="background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 4px; font-family: monospace;">$1</code>',
     )
     formatted = formatted.replace(
-      /\[([^\]]+?)\]$$(https?:\/\/[^\s)]+)$$/g,
+      /\[([^\]]+?)\]\((https?:\/\/[^\s)]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #235E84; text-decoration: underline;">$1</a>',
     )
     formatted = formatted.replace(/\n/g, "<br>")
-
     return formatted
   }
 
@@ -406,6 +424,68 @@ export default function DanieleAIPage() {
           }
         }
 
+        /* Table styling for markdown tables */
+        .daniele-message-content table {
+          width: 100% !important;
+          display: table !important;
+          border-collapse: collapse !important;
+          margin: 16px 0 !important;
+          font-size: 14px !important;
+          background-color: #ffffff !important;
+          color: #1e293b !important;
+          border-radius: 8px !important;
+          overflow: hidden !important;
+          border: 2px solid #235E84 !important;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+        }
+
+        .daniele-message-content th {
+          background-color: #235E84 !important;
+          color: #ffffff !important;
+          padding: 12px 15px !important;
+          text-align: left !important;
+          font-weight: 700 !important;
+          border-bottom: 2px solid #1a4c6e !important;
+        }
+
+        .daniele-message-content td {
+          background-color: #ffffff !important;
+          color: #334155 !important;
+          padding: 12px 15px !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+          border-right: 1px solid #e2e8f0 !important;
+          line-height: 1.5 !important;
+        }
+
+        .daniele-message-content tr:nth-child(even) td {
+          background-color: #f8fafc !important;
+        }
+
+        .daniele-message-content tr:last-child td {
+          border-bottom: none !important;
+        }
+
+        /* User message table styles */
+        .daniele-message.user .daniele-message-content table {
+          background-color: rgba(255,255,255,0.1) !important;
+          border-color: rgba(255,255,255,0.3) !important;
+        }
+
+        .daniele-message.user .daniele-message-content th {
+          background-color: rgba(255,255,255,0.2) !important;
+          color: #ffffff !important;
+        }
+
+        .daniele-message.user .daniele-message-content td {
+          background-color: transparent !important;
+          color: #ffffff !important;
+          border-color: rgba(255,255,255,0.2) !important;
+        }
+
+        .daniele-message.user .daniele-message-content tr:nth-child(even) td {
+          background-color: rgba(255,255,255,0.05) !important;
+        }
+
         @media (max-width: 1024px) {
           .sidebar {
             width: 280px !important;
@@ -559,7 +639,7 @@ export default function DanieleAIPage() {
                   }}
                 >
                   <img
-                    src="https://www.ai-scaleup.com/wp-content/uploads/2024/11/Gary-AI-SMMg-icon.png"
+                    src="https://www.ai-scaleup.com/wp-content/uploads/2025/11/daniele_ai_direct_response_copywriter.png"
                     alt="Daniele AI"
                     style={{ width: "100%", height: "100%", objectFit: "cover" }}
                   />
@@ -807,15 +887,13 @@ export default function DanieleAIPage() {
                 },
                 {
                   name: "Daniele AI",
-                  img: "https://www.ai-scaleup.com/wp-content/uploads/2024/11/Gary-AI-SMMg-icon.png",
+                  img: "https://www.ai-scaleup.com/wp-content/uploads/2025/11/daniele_ai_direct_response_copywriter.png",
                   href: "/dashboard/daniele-ai",
                 },
               ].map((agent) => (
-                <a
+                <Link
                   key={agent.name}
                   href={agent.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -839,13 +917,13 @@ export default function DanieleAIPage() {
                     }}
                   >
                     <img
-                      src={agent.img || "/placeholder.svg"}
+                      src={agent.img}
                       alt={agent.name}
                       style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     />
                   </div>
                   <span style={{ fontSize: "14px", fontWeight: 500 }}>{agent.name}</span>
-                </a>
+                </Link>
               ))}
             </div>
           </div>
@@ -980,7 +1058,7 @@ export default function DanieleAIPage() {
             {messages.map((message, index) => (
               <div
                 key={index}
-                className="message-container"
+                className={`message-container daniele-message ${message.sender}`}
                 style={{
                   marginBottom: "32px",
                   display: "flex",
@@ -1012,7 +1090,7 @@ export default function DanieleAIPage() {
                   <img
                     src={
                       message.sender === "ai"
-                        ? "https://www.ai-scaleup.com/wp-content/uploads/2024/11/Gary-AI-SMMg-icon.png"
+                        ? "https://www.ai-scaleup.com/wp-content/uploads/2025/11/daniele_ai_direct_response_copywriter.png"
                         : "https://www.shutterstock.com/image-vector/vector-flat-illustration-grayscale-avatar-600nw-2264922221.jpg"
                     }
                     alt={message.sender === "ai" ? "Daniele AI" : "Cliente"}
@@ -1021,7 +1099,7 @@ export default function DanieleAIPage() {
                 </div>
 
                 <div
-                  className="message-bubble"
+                  className="message-bubble daniele-message-content"
                   style={{
                     flex: 1,
                     background: message.sender === "user" ? "#235E84" : "#ffffff",

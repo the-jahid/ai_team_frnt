@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from "react"
 import { UserButton } from "@clerk/nextjs"
 import Link from "next/link"
 import { Home } from 'lucide-react'
+import { marked } from 'marked'
 
 interface Message {
   text: string
@@ -156,6 +157,27 @@ export default function LaraAI() {
   }
 
   const formatMessageText = (text: string): string => {
+    if (!text) return ''
+
+    // Detect if text contains a markdown table
+    const hasTable = /\|.*\|.*\n\s*\|[\s\-:]+\|/m.test(text)
+
+    if (hasTable) {
+      try {
+        marked.setOptions({
+          gfm: true,
+          breaks: true
+        })
+        const parsed = marked.parse(text) as string
+        console.log('Marked parsed table:', parsed)
+        return parsed
+      } catch (e) {
+        console.error("Marked parsing error:", e)
+        return text.replace(/\n/g, "<br>")
+      }
+    }
+
+    // Basic formatting for non-table content
     let t = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     t = t.replace(/\*(.+?)\*/g, "<em>$1</em>")
@@ -164,7 +186,7 @@ export default function LaraAI() {
       '<code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:0.9em;">$1</code>',
     )
     t = t.replace(
-      /\[([^\]]+?)\]\$\$(https?:\/\/[^\s)]+)\$\$/g,
+      /\[([^\]]+?)\]$$(https?:\/\/[^\s)]+)$$/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#235E84;text-decoration:underline;">$1</a>',
     )
     t = t.replace(/\n/g, "<br>")
@@ -396,7 +418,6 @@ export default function LaraAI() {
           border-right: none;
         }
 
-        /* Added mobile responsive styles for sidebar */
         @media (max-width: 768px) {
           .sidebar {
             position: fixed;
@@ -441,7 +462,6 @@ export default function LaraAI() {
           border-bottom: 1px solid var(--sidebar-border);
         }
 
-        /* Added responsive padding for sidebar header */
         @media (max-width: 768px) {
           .sidebar-header {
             padding: 16px;
@@ -461,14 +481,12 @@ export default function LaraAI() {
           margin-bottom: 24px;
         }
 
-        /* Added responsive spacing for brand header */
         @media (max-width: 768px) {
           .brand-header {
             margin-bottom: 16px;
           }
         }
 
-        /* Added mobile close button styles */
         .mobile-close-btn {
           display: none;
           background: transparent;
@@ -508,7 +526,6 @@ export default function LaraAI() {
           background: var(--primary);
         }
 
-        /* Added responsive avatar size */
         @media (max-width: 480px) {
           .profile-avatar {
             width: 32px;
@@ -529,7 +546,6 @@ export default function LaraAI() {
           color: var(--sidebar-foreground);
         }
 
-        /* Added responsive font size for brand title */
         @media (max-width: 768px) {
           .brand-title {
             font-size: 18px;
@@ -559,7 +575,6 @@ export default function LaraAI() {
           width: 100%;
         }
 
-        /* Added responsive padding for new chat button */
         @media (max-width: 768px) {
           .new-chat-button {
             padding: 12px 16px;
@@ -825,7 +840,6 @@ export default function LaraAI() {
           min-height: 80px;
         }
 
-        /* Added responsive padding and height for chat header */
         @media (max-width: 1024px) {
           .chat-header {
             padding: 16px 24px;
@@ -853,7 +867,6 @@ export default function LaraAI() {
           gap: 16px;
         }
 
-        /* Added responsive gap for header left */
         @media (max-width: 768px) {
           .header-left {
             gap: 12px;
@@ -872,7 +885,6 @@ export default function LaraAI() {
           gap: 16px;
         }
 
-        /* Added responsive gap for header right */
         @media (max-width: 768px) {
           .header-right {
             gap: 12px;
@@ -899,7 +911,6 @@ export default function LaraAI() {
           cursor: pointer;
         }
 
-        /* Added responsive size for home button */
         @media (max-width: 768px) {
           .home-button {
             width: 36px;
@@ -925,7 +936,6 @@ export default function LaraAI() {
           color: #ffffff;
         }
 
-        /* Added responsive font size for chat title */
         @media (max-width: 1024px) {
           .chat-title {
             font-size: 18px;
@@ -944,7 +954,6 @@ export default function LaraAI() {
           }
         }
 
-        /* Added mobile hamburger menu button styles */
         .toggle-sidebar-btn {
           display: flex;
           align-items: center;
@@ -997,7 +1006,6 @@ export default function LaraAI() {
           background: var(--background);
         }
 
-        /* Added responsive padding for chat messages */
         @media (max-width: 1024px) {
           .chat-messages {
             padding: 40px 40px;
@@ -1025,7 +1033,6 @@ export default function LaraAI() {
           max-width: 90%;
         }
 
-        /* Added responsive spacing and width for messages */
         @media (max-width: 768px) {
           .message {
             margin-bottom: 24px;
@@ -1071,7 +1078,6 @@ export default function LaraAI() {
           overflow: hidden;
         }
 
-        /* Added responsive size for message avatar */
         @media (max-width: 768px) {
           .message-avatar {
             width: 36px;
@@ -1113,7 +1119,6 @@ export default function LaraAI() {
           min-width: 200px;
         }
 
-        /* Added responsive padding for message content */
         @media (max-width: 768px) {
           .message-content {
             padding: 16px 18px;
@@ -1140,7 +1145,6 @@ export default function LaraAI() {
           font-size: 15px;
         }
 
-        /* Added responsive font size for message text */
         @media (max-width: 768px) {
           .message-text {
             font-size: 14px;
@@ -1210,7 +1214,6 @@ export default function LaraAI() {
           background: var(--background);
         }
 
-        /* Added responsive padding for input container */
         @media (max-width: 1024px) {
           .input-container {
             padding: 24px 40px;
@@ -1240,7 +1243,6 @@ export default function LaraAI() {
           transition: all 0.2s ease;
         }
 
-        /* Added responsive padding for input wrapper */
         @media (max-width: 768px) {
           .input-wrapper {
             gap: 10px;
@@ -1273,7 +1275,6 @@ export default function LaraAI() {
           font-family: inherit;
         }
 
-        /* Added responsive font size for input */
         @media (max-width: 768px) {
           .message-input {
             font-size: 14px;
@@ -1305,7 +1306,6 @@ export default function LaraAI() {
           flex-shrink: 0;
         }
 
-        /* Added responsive size for send button */
         @media (max-width: 768px) {
           .send-button {
             width: 36px;
@@ -1339,6 +1339,66 @@ export default function LaraAI() {
           background: var(--muted);
           color: var(--muted-foreground);
           cursor: not-allowed;
+        }
+
+        .lara-message-content table {
+          width: 100% !important;
+          display: table !important;
+          border-collapse: collapse !important;
+          margin: 16px 0 !important;
+          font-size: 14px !important;
+          background-color: #ffffff !important;
+          color: #1e293b !important;
+          border-radius: 8px !important;
+          overflow: hidden !important;
+          border: 2px solid #235E84 !important;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+        }
+
+        .lara-message-content th {
+          background-color: #235E84 !important;
+          color: #ffffff !important;
+          padding: 12px 15px !important;
+          text-align: left !important;
+          font-weight: 700 !important;
+          border-bottom: 2px solid #1a4c6e !important;
+        }
+
+        .lara-message-content td {
+          background-color: #ffffff !important;
+          color: #334155 !important;
+          padding: 12px 15px !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+          border-right: 1px solid #e2e8f0 !important;
+          line-height: 1.5 !important;
+        }
+
+        .lara-message-content tr:nth-child(even) td {
+          background-color: #f8fafc !important;
+        }
+
+        .lara-message-content tr:last-child td {
+          border-bottom: none !important;
+        }
+
+        .message.user .lara-message-content table {
+          background-color: rgba(255,255,255,0.1) !important;
+          border-color: rgba(255,255,255,0.3) !important;
+        }
+
+        .message.user .lara-message-content th {
+          background-color: rgba(255,255,255,0.2) !important;
+          color: #ffffff !important;
+        }
+
+        .message.user .lara-message-content td {
+          background-color: transparent !important;
+          color: #ffffff !important;
+          border-color: rgba(255,255,255,0.2) !important;
+        }
+
+        .message.user .lara-message-content tr:nth-child(even) td {
+          background-color: rgba(255,255,255,0.05) !important;
         }
       `}</style>
 
@@ -1489,7 +1549,7 @@ export default function LaraAI() {
                 <a href="/dashboard/daniele-ai" target="_blank" rel="noopener noreferrer" className="agent-item">
                   <div className="agent-avatar">
                     <img
-                      src="https://www.ai-scaleup.com/wp-content/uploads/2024/11/Gary-AI-SMMg-icon.png"
+                      src="https://www.ai-scaleup.com/wp-content/uploads/2025/11/daniele_ai_direct_response_copywriter.png"
                       alt="Daniele"
                     />
                   </div>
@@ -1556,7 +1616,7 @@ export default function LaraAI() {
                     alt={message.sender === "ai" ? "Lara AI" : "User"}
                   />
                 </div>
-                <div className="message-content">
+                <div className="message-content lara-message-content">
                   <div className="message-text">
                     {message.text ? (
                       <div dangerouslySetInnerHTML={{ __html: formatMessageText(message.text) }} />

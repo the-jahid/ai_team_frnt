@@ -9,32 +9,50 @@ import {
   FileText, Image as ImageIcon, ExternalLink, Menu 
 } from 'lucide-react';
 
+// --- TYPES ---
+interface Message {
+  text: string;
+  sender: "ai" | "user";
+  time: string;
+  files?: string[];
+  raw?: string;
+}
+
+interface ChatSession {
+  messages: Message[];
+  title: string;
+  lastUpdated: string;
+  folderId: string | null;
+  archived: boolean;
+  agentId: string;
+}
+
+interface FolderType {
+  id: string;
+  name: string;
+}
+
 // --- CONSTANTS ---
 const USER_AVATAR = "https://www.shutterstock.com/image-vector/vector-flat-illustration-grayscale-avatar-600nw-2264922221.jpg";
 
 // --- ROBUST MARKDOWN SHIM v4 ---
 const simpleMarkdown = {
-  parse: (text) => {
+  parse: (text: string) => {
     if (!text) return '';
 
-    // 1. Helper: Inline Formatting (Bold, Italic, Code, Links)
-    const formatInline = (str) => {
+    // 1. Helper: Inline Formatting
+    const formatInline = (str: string) => {
       return str
-        // Explicit Bold (**text**) -> Bright White
         .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900 dark:text-white">$1</strong>')
         .replace(/__([\s\S]*?)__/g, '<strong class="font-bold text-slate-900 dark:text-white">$1</strong>')
-        // Italic (*text*)
         .replace(/\*([\s\S]*?)\*/g, '<em class="italic opacity-90">$1</em>')
         .replace(/_([\s\S]*?)_/g, '<em class="italic opacity-90">$1</em>')
-        // Code
         .replace(/`([^`]+)`/g, '<code class="bg-black/20 px-1 rounded font-mono text-xs">$1</code>')
-        // Links
         .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-sky-400 hover:underline">$1</a>');
     };
 
-    // 2. Helper: Auto-Bold Headers (e.g. "STRATEGIA: text")
-    const autoBold = (str) => {
-        // Pattern: Start of line, uppercase/titlecase words, colon. 
+    // 2. Helper: Auto-Bold Headers
+    const autoBold = (str: string) => {
         const match = str.match(/^([A-ZÀ-ÖØ-Þ0-9\s&/-]{3,}:)(.*)/);
         if (match) {
             return `<strong class="font-bold text-slate-900 dark:text-white">${match[1]}</strong>${formatInline(match[2])}`;
@@ -44,13 +62,12 @@ const simpleMarkdown = {
 
     const lines = text.split('\n');
     let output = '';
-    let tableBuffer = [];
+    let tableBuffer: string[] = [];
     let inList = false;
 
     const flushTable = () => {
         if (tableBuffer.length === 0) return;
         
-        // Basic validation
         if (tableBuffer.length < 2) {
             tableBuffer.forEach(line => {
                 output += `<div class="mb-1">${formatInline(line)}</div>`;
@@ -61,17 +78,18 @@ const simpleMarkdown = {
 
         let html = '<div class="overflow-x-auto my-3 rounded border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5"><table class="w-full text-left border-collapse text-xs">';
         
-        // Header
-        const headerCells = tableBuffer[0].split('|').filter(c => c.trim()).map(c => c.trim());
+        const headerCols = tableBuffer[0].split('|');
+        const headerCells = headerCols.filter(c => c.trim()).map(c => c.trim());
+        
         html += '<thead class="bg-slate-100 dark:bg-white/10"><tr>';
         headerCells.forEach(cell => {
             html += `<th class="p-2 border-b border-slate-200 dark:border-white/10 font-bold text-slate-800 dark:text-white">${formatInline(cell)}</th>`;
         });
         html += '</tr></thead><tbody>';
 
-        // Body
         for (let i = 2; i < tableBuffer.length; i++) {
-            const rowCells = tableBuffer[i].split('|').filter(c => c.trim()).map(c => c.trim());
+            const rowCols = tableBuffer[i].split('|');
+            const rowCells = rowCols.filter(c => c.trim()).map(c => c.trim());
             html += '<tr class="border-b border-slate-200 dark:border-white/5 last:border-0 hover:bg-slate-100/50 dark:hover:bg-white/5">';
             rowCells.forEach(cell => {
                 html += `<td class="p-2 opacity-90">${formatInline(cell)}</td>`;
@@ -87,7 +105,6 @@ const simpleMarkdown = {
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
         
-        // Table Detection
         if (line.startsWith('|') && line.endsWith('|')) {
             if (inList) { output += '</ul>'; inList = false; }
             tableBuffer.push(line);
@@ -95,7 +112,6 @@ const simpleMarkdown = {
         }
         flushTable();
 
-        // List Detection
         if (line.match(/^[-*]\s/)) {
             if (!inList) { output += '<ul class="list-disc ml-4 my-2 space-y-1">'; inList = true; }
             const content = line.replace(/^[-*]\s+/, '');
@@ -103,10 +119,8 @@ const simpleMarkdown = {
             continue;
         }
         
-        // Close list if we hit non-list line (and it's not empty)
         if (inList && line !== '') { output += '</ul>'; inList = false; }
 
-        // Standard Text
         if (line === '') {
             output += '<div class="h-2"></div>';
         } else if (line.startsWith('### ')) {
@@ -126,7 +140,7 @@ const simpleMarkdown = {
 };
 
 // --- AGENT DATABASE ---
-const AGENTS_DB = {
+const AGENTS_DB: Record<string, any> = {
   "tony-ai": {
     name: "Tony AI",
     role: "Sales Advisor",
@@ -225,40 +239,40 @@ const MockUserButton = () => (
 
 export default function App() {
   // --- STATE ---
-  const [activeAgentId, setActiveAgentId] = useState("tony-ai");
+  const [activeAgentId, setActiveAgentId] = useState<string>("tony-ai");
   const currentAgent = AGENTS_DB[activeAgentId] || AGENTS_DB["tony-ai"];
 
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(true);
-  const [sidebarMode, setSidebarMode] = useState('chats');
+  const [sidebarMode, setSidebarMode] = useState<'chats' | 'agents'>('chats');
   const [useMemory, setUseMemory] = useState(true);
-  const [chats, setChats] = useState({});
+  const [chats, setChats] = useState<Record<string, ChatSession>>({});
   const [currentChatId, setCurrentChatId] = useState("default");
-  const [activeMenu, setActiveMenu] = useState(null);
-  const [renamingChat, setRenamingChat] = useState(null);
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [renamingChat, setRenamingChat] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const [pinnedChats, setPinnedChats] = useState(new Set());
-  const [copiedMessageIndex, setCopiedMessageIndex] = useState(null);
+  const [pinnedChats, setPinnedChats] = useState<Set<string>>(new Set());
+  const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
   const [isDark, setIsDark] = useState(true);
   
   // Folder State
-  const [folders, setFolders] = useState([]);
-  const [expandedFolders, setExpandedFolders] = useState(new Set());
-  const [draggedChatId, setDraggedChatId] = useState(null);
-  const [dragOverFolderId, setDragOverFolderId] = useState(null);
+  const [folders, setFolders] = useState<FolderType[]>([]);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [draggedChatId, setDraggedChatId] = useState<string | null>(null);
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [showArchived, setShowArchived] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   // --- REFS ---
-  const messagesEndRef = useRef(null);
-  const textareaRef = useRef(null);
-  const newFolderInputRef = useRef(null);
-  const fileInputRef = useRef(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const newFolderInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const CURRENT_NAMESPACE = useRef("");
 
   const N8N_ENDPOINT = "https://n8n-c2lq.onrender.com/webhook/0c898053-01f4-494d-b013-165c8a9023d1/chat?action=sendMessage";
@@ -290,7 +304,8 @@ export default function App() {
     const savedChats = localStorage.getItem("tony-ai-chats");
     if (savedChats) {
       try {
-        const parsedChats = JSON.parse(savedChats);
+        // Cast the parsed JSON to the specific type to fix the TS error
+        const parsedChats = JSON.parse(savedChats) as Record<string, ChatSession>;
         setChats(parsedChats);
         if (Object.keys(parsedChats).length > 0) {
           const sorted = Object.entries(parsedChats).sort(
@@ -349,25 +364,20 @@ export default function App() {
   }, [isCreatingFolder]);
 
   // --- AGENT SWITCHING LOGIC ---
-  const switchAgent = (agentId) => {
+  const switchAgent = (agentId: string) => {
       setActiveAgentId(agentId);
       const newAgent = AGENTS_DB[agentId];
-      
-      // 1. Open sidebar explicitly
       setSidebarVisible(true); 
-      
-      // 2. Keep the AI Team tab open
-      // 3. Initialize new chat for this agent
+      // setSidebarMode('chats'); // Keep tabs stable
       initNewChatForAgent(newAgent, agentId);
   }
 
-  const initNewChatForAgent = (agent, specificAgentId) => {
+  const initNewChatForAgent = (agent: any, specificAgentId?: string) => {
       const targetAgentId = specificAgentId || activeAgentId;
       const newChatId = "chat_" + Date.now();
       
       let messageText = `Ciao! Sono **${agent.name}**. ${agent.description} Come posso aiutarti?`;
       
-      // Custom Welcome Message for Tony AI
       if (agent.name === "Tony AI") {
           messageText = `Ciao! Sono **Tony AI**.
 Il tuo consulente vendite digitale con 30 anni di esperienza. Analizzo i dati e ottimizzo il funnel.
@@ -384,7 +394,7 @@ Per poter sviluppare la strategia commerciale più efficace per te, ho bisogno c
 In alternativa, preferisci una consulenza completa per sviluppare un sales plan strutturato, oppure vuoi concentrarti su una delle 3 aree specifiche sopra menzionate?`;
       }
 
-      const welcomeMsg = {
+      const welcomeMsg: Message = {
         text: messageText,
         sender: "ai",
         time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
@@ -409,7 +419,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
   }
 
   // --- CHAT STATE HELPER ---
-  const updateChatState = (chatId, updates) => {
+  const updateChatState = (chatId: string, updates: Partial<ChatSession>) => {
       setChats(prev => {
           const existing = prev[chatId] || { 
               messages: [], 
@@ -432,7 +442,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
     setSidebarMode('chats');
   }
 
-  const loadChat = (chatId) => {
+  const loadChat = (chatId: string) => {
     if (!chats[chatId]) return;
     setCurrentChatId(chatId);
     setMessages(chats[chatId].messages || []);
@@ -440,7 +450,6 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
         setActiveAgentId(chats[chatId].agentId);
     }
     setActiveMenu(null);
-    // Close sidebar on mobile when a chat is selected
     if (window.innerWidth < 768) {
         setSidebarVisible(false);
     }
@@ -471,7 +480,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
       setNewFolderName("");
   }
 
-  const toggleFolder = (folderId) => {
+  const toggleFolder = (folderId: string) => {
       setExpandedFolders(prev => {
           const next = new Set(prev);
           if (next.has(folderId)) next.delete(folderId);
@@ -480,7 +489,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
       });
   }
 
-  const deleteFolder = (folderId, e) => {
+  const deleteFolder = (folderId: string, e: React.MouseEvent) => {
       e.stopPropagation();
       if (!confirm("Eliminare cartella? Le chat torneranno nella lista principale.")) return;
       
@@ -498,35 +507,28 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
       localStorage.setItem("tony-ai-folders", JSON.stringify(updatedFolders));
   }
 
-  // --- CONTEXT MENU ACTIONS (FIXED DELETE) ---
-  const deleteChat = (chatIdToDelete, e) => {
+  // --- CONTEXT MENU ACTIONS ---
+  const deleteChat = (chatIdToDelete: string, e: React.MouseEvent) => {
     if (e) {
         e.preventDefault();
         e.stopPropagation();
         e.nativeEvent.stopImmediatePropagation();
     }
 
-    // Close menu first to prevent UI glitches
     setActiveMenu(null);
     
     if (!confirm("Sei sicuro di voler eliminare questa chat?")) return;
     
-    // 1. Create deep copy to avoid reference issues
     const updatedChats = { ...chats };
-    
-    // 2. Check if chat exists
     if (!updatedChats[chatIdToDelete]) return;
 
-    // 3. Delete
     delete updatedChats[chatIdToDelete];
-    
     const remainingIds = Object.keys(updatedChats);
 
-    // CASE 1: List becomes EMPTY -> Force a fresh clean state
     if (remainingIds.length === 0) {
         const agent = AGENTS_DB[activeAgentId] || AGENTS_DB["tony-ai"];
         const newChatId = "chat_" + Date.now();
-        const welcomeMsg = {
+        const welcomeMsg: Message = {
             text: `Ciao! Sono **${agent.name}**. ${agent.description} Come posso aiutarti?`,
             sender: "ai",
             time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
@@ -543,17 +545,13 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
             }
         };
         
-        // Write to storage AND state immediately
         localStorage.setItem("tony-ai-chats", JSON.stringify(newChatState));
         setChats(newChatState);
         setCurrentChatId(newChatId);
         setMessages([welcomeMsg]);
-    } 
-    // CASE 2: List NOT empty -> Standard delete logic
-    else {
+    } else {
         localStorage.setItem("tony-ai-chats", JSON.stringify(updatedChats));
         
-        // IMPORTANT: Switch active chat BEFORE setting state if needed
         if (chatIdToDelete === currentChatId) {
              const sorted = remainingIds.sort((a,b) => {
                  const timeA = new Date(updatedChats[a].lastUpdated).getTime() || 0;
@@ -569,25 +567,25 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
     }
   }
 
-  const archiveChat = (chatId) => {
+  const archiveChat = (chatId: string) => {
       updateChatState(chatId, { archived: !chats[chatId]?.archived });
       setActiveMenu(null);
   }
 
-  const shareChat = (chatId) => {
+  const shareChat = (chatId: string) => {
       const url = `${window.location.origin}/chat/${chatId}`;
       navigator.clipboard.writeText(url);
       alert("Link copiato negli appunti: " + url);
       setActiveMenu(null);
   }
 
-  const startRenaming = (chatId) => {
+  const startRenaming = (chatId: string) => {
     setRenamingChat(chatId);
     setRenameValue(chats[chatId]?.title || "");
     setActiveMenu(null);
   }
 
-  const confirmRename = (chatId) => {
+  const confirmRename = (chatId: string) => {
     if (!renameValue.trim()) {
       setRenamingChat(null);
       return;
@@ -598,17 +596,17 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
   }
 
   // --- DRAG & DROP LOGIC ---
-  const handleDragStart = (e, chatId) => {
+  const handleDragStart = (e: React.DragEvent, chatId: string) => {
       e.dataTransfer.setData("chatId", chatId);
       setDraggedChatId(chatId);
   }
 
-  const handleDragOver = (e, folderId) => {
+  const handleDragOver = (e: React.DragEvent, folderId: string | null) => {
       e.preventDefault();
       setDragOverFolderId(folderId);
   }
 
-  const handleDrop = (e, targetFolderId) => {
+  const handleDrop = (e: React.DragEvent, targetFolderId: string | null) => {
       e.preventDefault();
       setDragOverFolderId(null);
       const chatId = e.dataTransfer.getData("chatId");
@@ -624,10 +622,9 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
   }
 
   // --- MESSAGING ---
-  const formatMessageText = (text) => {
+  const formatMessageText = (text: string) => {
     if (!text) return '';
     try {
-      // We trust our simpleMarkdown shim now
       return simpleMarkdown.parse(text);
     } catch (e) { return text }
   }
@@ -635,14 +632,13 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
   const sendMessage = async () => {
     if (!inputValue.trim() && selectedFiles.length === 0) return;
     
-    const userMessage = { 
+    const userMessage: Message = { 
         text: inputValue, 
         sender: "user", 
         time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
         files: selectedFiles.map(f => f.name)
     };
     
-    // 1. Update State & Persist User Message
     setMessages((prev) => {
         const newMsgs = [...prev, userMessage];
         updateChatState(currentChatId, { 
@@ -714,7 +710,6 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
         }
       }
       
-      // 2. Final Persistence of AI Response
       setMessages(prev => {
         const newMsgs = [...prev]; 
         newMsgs[newMsgs.length - 1].time = new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
@@ -728,7 +723,6 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
       console.error(error);
       setMessages(prev => {
          const newMsgs = [...prev]; 
-         // Don't overwrite if we already have some text
          if (newMsgs[newMsgs.length - 1].text === "...") {
             newMsgs[newMsgs.length - 1].text = "Errore di connessione. Il server n8n potrebbe non essere raggiungibile.";
          }
@@ -741,12 +735,11 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
 
   const sortedChats = Object.entries(chats).sort(([, a], [, b]) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime());
 
-  // --- FILE HANDLERS ---
   const handleUploadClick = () => fileInputRef.current?.click();
-  const handleFileChange = (e) => {
-      if (e.target.files?.length) setSelectedFiles(prev => [...prev, ...Array.from(e.target.files)]);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files?.length) setSelectedFiles(prev => [...prev, ...Array.from(e.target.files!)]);
   }
-  const removeFile = (index) => {
+  const removeFile = (index: number) => {
       setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   }
 
@@ -763,11 +756,9 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
         body { font-family: var(--font-tech); background-color: #f8fafc; color: #0f172a; overflow: hidden; }
         .dark body { background-color: var(--brand-dark); color: #f8fafc; }
         
-        /* GLASSMORPHISM */
         .glass-panel { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.5); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05); }
         .dark .glass-panel { background: rgba(2, 6, 23, 0.85); border: 1px solid rgba(14, 165, 233, 0.15); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4); }
 
-        /* ANIMATIONS */
         @keyframes brain-float { 0% { transform: translateY(0px); } 50% { transform: translateY(-6px); } 100% { transform: translateY(0px); } }
         .animate-float { animation: brain-float 6s ease-in-out infinite; }
         
@@ -787,7 +778,6 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
         @keyframes synapse-beam { 0% { opacity: 0; transform: translateY(20px) scale(0.8); } 50% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-20px) scale(1.2); } }
         .synapse-beam::before { content: ''; position: absolute; width: 100%; height: 100%; top: 0; left: 0; background: radial-gradient(circle, rgba(14,165,233,0.2) 0%, transparent 70%); animation: synapse-beam 2s infinite; pointer-events: none; z-index: -1; }
 
-        /* MARKDOWN TABLES */
         .markdown-body table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 1.5em 0; border-radius: 12px; overflow: hidden; border: 1px solid rgba(148, 163, 184, 0.2); font-size: 0.95em; }
         .dark .markdown-body table { border-color: rgba(30, 41, 59, 0.8); }
         .markdown-body th { background-color: #f1f5f9; color: #334155; font-weight: 700; text-align: left; padding: 12px 16px; border-bottom: 2px solid rgba(148, 163, 184, 0.3); }
@@ -797,12 +787,10 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
         .markdown-body tr:nth-child(even) { background-color: rgba(241, 245, 249, 0.4); }
         .dark .markdown-body tr:nth-child(even) { background-color: rgba(30, 41, 59, 0.3); }
         
-        /* General Markdown */
         .markdown-body p { margin-bottom: 1.25em; line-height: 1.6; }
         .markdown-body strong { font-weight: 700; color: inherit; }
         .markdown-body ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 1.25em; }
         
-        /* Button Pulse */
         .btn-electric {
            background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
            box-shadow: 0 0 15px rgba(14,165,233,0.5);
@@ -813,7 +801,6 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
            transform: translateY(-1px);
         }
         
-        /* Custom Scrollbar */
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.2); border-radius: 2px; }
@@ -823,12 +810,10 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
 
       <div className={`flex h-screen w-full bg-tech-grid azure-glow-bg ${isDark ? 'dark' : ''}`}>
         
-        {/* --- SIDEBAR --- */}
         <div className={`glass-panel flex flex-col transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] z-40 
                         ${sidebarVisible ? 'w-80 translate-x-0' : 'w-0 -translate-x-full opacity-0'} 
                         fixed md:relative h-full border-r border-sky-100 dark:border-sky-900/30`}>
             
-            {/* Sidebar Header */}
             <div className="p-6 border-b border-sky-100 dark:border-sky-900/30 bg-gradient-to-b from-white/50 to-transparent dark:from-sky-900/20">
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
@@ -840,13 +825,11 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                         </div>
                         <h2 className="text-xl font-bold text-slate-800 dark:text-white tracking-wide font-tech">AI TEAM</h2>
                     </div>
-                    {/* Close Sidebar Button (Mobile/Desktop) */}
                     <button onClick={() => setSidebarVisible(false)} className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 transition-colors md:hidden">
                         <ChevronLeft size={20} />
                     </button>
                 </div>
 
-                {/* Electric Blue New Chat Button */}
                 <button 
                     onClick={createNewChat}
                     className="w-full py-3.5 px-4 btn-electric text-white font-bold rounded-xl flex items-center justify-center gap-2 uppercase tracking-wider text-sm border border-white/10"
@@ -855,7 +838,6 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                 </button>
             </div>
 
-            {/* Toggle Tabs (Chats / Agents) */}
             <div className="flex p-2 gap-1 mx-4 mt-4 bg-slate-100/80 dark:bg-slate-900/50 rounded-xl border border-sky-200/50 dark:border-sky-700/30 shadow-inner">
                 <button 
                     onClick={() => setSidebarMode('chats')}
@@ -877,17 +859,14 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                 </button>
             </div>
 
-            {/* Content Area */}
             <div className="flex-1 overflow-y-auto p-3 space-y-1 mt-2 custom-scrollbar"
-                 onDragOver={(e) => handleDragOver(e, null)} // Drop on Root
+                 onDragOver={(e) => handleDragOver(e, null)} 
                  onDrop={(e) => handleDrop(e, null)}
             >
                 
-                {/* MODE: CHAT HISTORY WITH FOLDERS */}
                 {sidebarMode === 'chats' && (
                     <div className="animate-in fade-in duration-300 space-y-3">
                         
-                        {/* New Folder Inline Input */}
                         {isCreatingFolder ? (
                             <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-sky-400 flex gap-2 items-center animate-in fade-in slide-in-from-top-2">
                                 <input 
@@ -910,7 +889,6 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                             </button>
                         )}
 
-                        {/* RENDER FOLDERS (Distinct Grey/Slate Gradient) */}
                         {folders.map(folder => {
                             const isExpanded = expandedFolders.has(folder.id);
                             const isDragTarget = dragOverFolderId === folder.id;
@@ -925,7 +903,6 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                                      onDragOver={(e) => handleDragOver(e, folder.id)}
                                      onDrop={(e) => handleDrop(e, folder.id)}
                                 >
-                                    {/* Folder Header (Compact Height) */}
                                     <div className="flex items-center justify-between p-2 cursor-pointer hover:bg-white/50 dark:hover:bg-white/5"
                                          onClick={() => toggleFolder(folder.id)}>
                                         <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
@@ -939,7 +916,6 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                                         </div>
                                     </div>
 
-                                    {/* Folder Contents */}
                                     {isExpanded && (
                                         <div className="bg-slate-50/50 dark:bg-black/20 p-1 space-y-1 border-t border-slate-200 dark:border-slate-700">
                                             {folderChats.length === 0 && <div className="text-[10px] text-slate-400 text-center py-2 italic">Trascina qui le chat</div>}
@@ -969,7 +945,6 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                             )
                         })}
 
-                        {/* ROOT CHATS (Not in folder & Not Archived) */}
                         <div className="space-y-1 pt-2">
                             {Object.entries(chats)
                                 .filter(([, c]) => !c.folderId && (showArchived ? c.archived : !c.archived))
@@ -1011,7 +986,6 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                                                     </p>
                                                 </div>
                                                 
-                                                {/* Context Menu Trigger */}
                                                 <div className="relative">
                                                     <button 
                                                         onClick={(e) => { e.stopPropagation(); setActiveMenu(isMenuOpen ? null : id) }} 
@@ -1020,7 +994,6 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                                                         <MoreHorizontal size={16} />
                                                     </button>
 
-                                                    {/* DROPDOWN MENU */}
                                                     {isMenuOpen && (
                                                         <div className="absolute right-0 top-8 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                                                             <button onClick={(e) => { e.stopPropagation(); shareChat(id) }} className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3 text-sm text-slate-700 dark:text-slate-200 border-b border-slate-100 dark:border-slate-700/50">
@@ -1045,7 +1018,6 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                             })}
                         </div>
                         
-                        {/* Archive Toggle */}
                         <div className="pt-4 border-t border-dashed border-slate-200 dark:border-slate-800 mt-4">
                             <button 
                                 onClick={() => setShowArchived(!showArchived)}
@@ -1057,7 +1029,6 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                     </div>
                 )}
 
-                {/* MODE: AGENTS */}
                 {sidebarMode === 'agents' && (
                     <div className="space-y-2 animate-in fade-in duration-300 px-1">
                          {AI_TEAM_LIST.map((agentItem, idx) => {
@@ -1076,22 +1047,17 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                 )}
             </div>
 
-            {/* Footer Settings */}
             <div className="p-4 border-t border-sky-100 dark:border-sky-900/30 bg-white/30 dark:bg-black/20 backdrop-blur-sm"><div className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-50 dark:bg-white/5 border border-sky-100 dark:border-white/5"><div className="flex items-center gap-2"><Zap size={16} className="text-sky-500" fill="currentColor" /><span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Memory Core</span></div><button onClick={() => { setUseMemory(!useMemory); localStorage.setItem("tony-ai-use-memory", String(!useMemory)) }} className={`w-10 h-5 rounded-full relative transition-all duration-300 ${useMemory ? 'bg-sky-500 shadow-[0_0_10px_rgba(14,165,233,0.4)]' : 'bg-slate-300 dark:bg-slate-600'}`}><div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-md transition-all duration-300 ${useMemory ? 'left-5.5' : 'left-0.5'}`}></div></button></div></div>
         </div>
 
-        {/* --- MAIN CONTENT --- */}
         <div className={`flex-1 flex flex-col relative h-full overflow-hidden transition-colors duration-1000 ${isLoading ? 'bg-sky-50/50 dark:bg-sky-950/20 neural-grid-active' : 'bg-slate-50/50 dark:bg-transparent'}`}>
             
-            {/* FLOATING HERO HEADER */}
             <div className="sticky top-4 z-50 px-4 md:px-8">
                 <div className={`w-full max-w-6xl mx-auto rounded-2xl p-1 shadow-2xl transition-all duration-500 animate-float overflow-hidden relative ${isDark ? 'bg-slate-800/95 border border-sky-500/30 shadow-[0_0_50px_rgba(14,165,233,0.15)]' : 'bg-sky-100/90 border border-sky-300 shadow-[0_10px_40px_rgba(14,165,233,0.25)]'} backdrop-blur-xl`}>
                     <div className="absolute inset-0 pointer-events-none opacity-40 brainwave-overlay"></div>
                     <div className="relative flex items-center justify-between p-3 md:p-4 rounded-xl z-10">
                         <div className="flex items-center gap-4 md:gap-6">
-                            {/* Mobile Menu Trigger */}
                             <button onClick={() => setSidebarVisible(!sidebarVisible)} className="p-3 rounded-xl bg-sky-500 text-white shadow-lg shadow-sky-500/40 hover:scale-110 hover:shadow-sky-500/60 transition-all active:scale-95 border-t border-white/20 md:hidden flex items-center justify-center"><Menu size={24} strokeWidth={3} /></button>
-                            {/* Desktop Toggle */}
                             <button onClick={() => setSidebarVisible(!sidebarVisible)} className="p-3 rounded-xl bg-sky-500 text-white shadow-lg shadow-sky-500/40 hover:scale-110 hover:shadow-sky-500/60 transition-all active:scale-95 border-t border-white/20 hidden md:flex items-center justify-center"><ChevronRight size={24} strokeWidth={3} /></button>
 
                             <div className="flex items-center gap-4 md:gap-6">
@@ -1109,7 +1075,6 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                 </div>
             </div>
 
-            {/* CHAT */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 z-10 custom-scrollbar relative pt-4">
                 <div className="max-w-6xl mx-auto space-y-6 pb-4 relative z-10">
                     {messages.map((message, index) => (
@@ -1141,7 +1106,6 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                 </div>
             </div>
 
-            {/* INPUT */}
             <div className={`shrink-0 p-4 sm:p-6 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-brand-dark dark:via-brand-dark/95 dark:to-transparent z-20 sticky bottom-0 transition-all duration-1000 ${isLoading ? 'synapse-active pb-10 synapse-beam' : ''}`}>
                 <div className={`max-w-6xl mx-auto relative glass-panel rounded-2xl p-1.5 shadow-2xl border border-sky-200 dark:border-sky-500/20 focus-within:border-sky-400 focus-within:shadow-[0_0_30px_rgba(56,189,248,0.25)] transition-all duration-500 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl ${isLoading ? 'border-sky-400 shadow-[0_0_50px_rgba(14,165,233,0.3)]' : ''}`}>
                     {selectedFiles.length > 0 && <div className="flex flex-wrap gap-2 p-3 border-b border-slate-200 dark:border-slate-700/50 bg-slate-50/50 dark:bg-black/20">{selectedFiles.map((file, idx) => <div key={idx} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-sky-200 dark:border-sky-700 text-xs font-medium text-slate-700 dark:text-sky-100 shadow-sm animate-in fade-in zoom-in">{file.type.startsWith('image/') ? <ImageIcon size={14} className="text-sky-500"/> : <FileText size={14} className="text-sky-500"/>}<span className="max-w-[120px] truncate">{file.name}</span><button onClick={() => removeFile(idx)} className="p-0.5 hover:bg-red-100 hover:text-red-500 rounded-full transition-colors"><X size={12}/></button></div>)}</div>}

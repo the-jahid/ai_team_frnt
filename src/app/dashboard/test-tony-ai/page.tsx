@@ -739,10 +739,67 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files?.length) setSelectedFiles(prev => [...prev, ...Array.from(e.target.files!)]);
   }
-  const removeFile = (index: number) => {
+  
+    const removeFile = (index: number) => {
       setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-  }
+  } 
 
+   // --- COPY HANDLER (RICH TEXT + UNWRAPPED TABLES) ---
+  const handleCopyMessage = async (text: string, index: number) => {
+    try {
+      let htmlContent = formatMessageText(text);
+
+      // INJECT INLINE STYLES
+      htmlContent = htmlContent
+        // 1. UNWRAP TABLE: Remove the surrounding DIV completely
+        .replace(/<div class="overflow-x-auto[^>]*>/g, "")
+        .replace(/<\/table><\/div>/g, "</table>")
+        
+        // 2. Text Formatting
+        .replace(/<strong[^>]*>/g, '<strong style="font-weight: 700; color: #0f172a;">')
+        .replace(/<em[^>]*>/g, '<em style="font-style: italic; color: #334155;">')
+        .replace(/<code[^>]*>/g, '<code style="background-color: #f1f5f9; padding: 2px 4px; border-radius: 4px; font-family: monospace; font-size: 0.9em; border: 1px solid #e2e8f0;">')
+        .replace(/<ul[^>]*>/g, '<ul style="margin-left: 20px; list-style-type: disc; padding-left: 20px; margin-bottom: 10px;">')
+        .replace(/<li[^>]*>/g, '<li style="margin-bottom: 4px;">')
+        .replace(/<h3[^>]*>/g, '<h3 style="font-size: 18px; font-weight: bold; margin-top: 15px; margin-bottom: 5px; color: #0f172a;">')
+        .replace(/<h2[^>]*>/g, '<h2 style="font-size: 22px; font-weight: bold; border-bottom: 2px solid #e2e8f0; margin-top: 20px; margin-bottom: 10px; color: #0f172a;">')
+
+        // 3. Table Formatting
+        .replace(/<table[^>]*>/g, '<table style="border-collapse: collapse; width: 100%; border: 1px solid #cbd5e1; font-family: sans-serif; font-size: 14px; margin: 10px 0;">')
+        .replace(/<thead[^>]*>/g, '<thead style="background-color: #f1f5f9;">')
+        .replace(/<th[^>]*>/g, '<th style="border: 1px solid #94a3b8; padding: 10px; text-align: left; font-weight: bold; background-color: #f1f5f9; color: #0f172a;">')
+        .replace(/<td[^>]*>/g, '<td style="border: 1px solid #cbd5e1; padding: 8px; color: #334155;">');
+
+      const finalHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: sans-serif; color: #0f172a; line-height: 1.6;">
+          ${htmlContent}
+        </body>
+        </html>
+      `;
+
+      const blobHtml = new Blob([finalHtml], { type: "text/html" });
+      const blobText = new Blob([text], { type: "text/plain" });
+
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/html": blobHtml,
+          "text/plain": blobText,
+        }),
+      ]);
+
+      setCopiedMessageIndex(index);
+      setTimeout(() => setCopiedMessageIndex(null), 2000);
+
+    } catch (err) {
+      console.error("Rich copy failed", err);
+      navigator.clipboard.writeText(text);
+      setCopiedMessageIndex(index);
+      setTimeout(() => setCopiedMessageIndex(null), 2000);
+    }
+  };
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
@@ -1093,7 +1150,15 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                                     <div className="flex items-center gap-2"><Activity size={16} className="text-sky-500 animate-pulse" /><span className="text-xs font-mono text-sky-500 animate-pulse">ANALYZING...</span></div>
                                 ) : (
                                     <div className={`markdown-body ${message.sender === 'user' ? 'text-inherit' : 'text-inherit'}`}>
-                                        {message.sender === 'ai' && !isLoading && <button onClick={() => {navigator.clipboard.writeText(message.text); setCopiedMessageIndex(index); setTimeout(()=>setCopiedMessageIndex(null),2000)}} className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-sky-100 dark:hover:bg-white/10 rounded text-slate-400 hover:text-sky-600">{copiedMessageIndex === index ? <Check size={14} className="text-green-500"/> : <Copy size={14}/>}</button>}
+                                        {message.sender === 'ai' && !isLoading && (
+  <button 
+    onClick={() => handleCopyMessage(message.text, index)} 
+    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-sky-100 dark:hover:bg-white/10 rounded text-slate-400 hover:text-sky-600"
+    title="Copy formatted"
+  >
+    {copiedMessageIndex === index ? <Check size={14} className="text-green-500"/> : <Copy size={14}/>}
+  </button>
+)}
                                         {message.files && message.files.length > 0 && <div className="flex flex-wrap gap-2 mb-3">{message.files.map((file, fIdx) => <div key={fIdx} className="flex items-center gap-2 p-2 rounded-lg bg-white/10 border border-white/20 text-xs"><FileText size={14} /><span className="truncate max-w-[150px]">{file}</span></div>)}</div>}
                                         <div dangerouslySetInnerHTML={{ __html: formatMessageText(message.text) }} />
                                     </div>
@@ -1124,6 +1189,8 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
     </>
   );
 }
+
+
 
 
 

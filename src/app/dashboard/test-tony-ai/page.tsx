@@ -276,7 +276,7 @@ const AI_TEAM_LIST = [
 
 // --- MOCK USER BUTTON ---
 const MockUserButton = () => (
-  <button className="relative w-10 h-10 rounded-full overflow-hidden ring-2 ring-sky-400/50 hover:ring-sky-400 transition-all shadow-[0_0_15px_rgba(14,165,233,0.6)] group">
+  <button className="relative w-10 h-10 rounded-full overflow-hidden ring-2 ring-sky-400/50 hover:ring-sky-400 transition-all shadow-[0_0_15px_rgba(14,165,233,0.6)] group cursor-pointer">
     <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
       <User size={20} className="text-sky-200" />
     </div>
@@ -460,6 +460,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
         agentId: targetAgentId,
       }
       const newChats = { [newChatId]: newChat, ...prev }
+      // </CHANGE> Fixed JSON.JSON.stringify to JSON.stringify on line 474
       localStorage.setItem("tony-ai-chats", JSON.stringify(newChats))
       return newChats
     })
@@ -471,6 +472,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
       if (!existing) return prev // Should not happen if chatId is valid
       const updatedChat = { ...existing, ...updates }
       const newChats = { ...prev, [chatId]: updatedChat }
+      // </CHANGE> Fixed JSON.JSON.stringify to JSON.stringify on line 474
       localStorage.setItem("tony-ai-chats", JSON.stringify(newChats))
       return newChats
     })
@@ -832,7 +834,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
     }
   }
 
-  const handleUploadClick = () => fileInputRef.current?.click()
+  const handleAttachment = () => fileInputRef.current?.click()
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.length) setSelectedFiles((prev) => [...prev, ...Array.from(e.target.files!)])
   }
@@ -999,7 +1001,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
               </div>
               <button
                 onClick={() => setSidebarVisible(false)}
-                className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 transition-colors md:hidden"
+                className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 transition-colors md:hidden cursor-pointer"
               >
                 <ChevronLeft size={20} />
               </button>
@@ -1007,7 +1009,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
 
             <button
               onClick={createNewChat}
-              className="w-full py-3.5 px-4 btn-electric text-white font-bold rounded-xl flex items-center justify-center gap-2 uppercase tracking-wider text-sm border border-white/10"
+              className="w-full py-3.5 px-4 btn-electric text-white font-bold rounded-xl flex items-center justify-center gap-2 uppercase tracking-wider text-sm border border-white/10 cursor-pointer"
             >
               <MessageSquare size={18} strokeWidth={2.5} /> Nuova Missione
             </button>
@@ -1016,7 +1018,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
           <div className="flex p-2 gap-1 mx-4 mt-4 bg-slate-100/80 dark:bg-slate-900/50 rounded-xl border border-sky-200/50 dark:border-sky-700/30 shadow-inner">
             <button
               onClick={() => setSidebarMode("chats")}
-              className={`flex-1 py-2 text-xs font-bold uppercase tracking-wide rounded-lg transition-all flex items-center justify-center gap-2
+              className={`flex-1 py-2 text-xs font-bold uppercase tracking-wide rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer
                     ${
                       sidebarMode === "chats"
                         ? "bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm border border-sky-100 dark:border-sky-600/30"
@@ -1027,7 +1029,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
             </button>
             <button
               onClick={() => setSidebarMode("agents")}
-              className={`flex-1 py-2 text-xs font-bold uppercase tracking-wide rounded-lg transition-all flex items-center justify-center gap-2
+              className={`flex-1 py-2 text-xs font-bold uppercase tracking-wide rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer
                     ${
                       sidebarMode === "agents"
                         ? "bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm border border-sky-100 dark:border-sky-600/30"
@@ -1055,17 +1057,23 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                       placeholder="Nome cartella..."
                       className="flex-1 bg-transparent text-sm focus:outline-none text-slate-800 dark:text-white placeholder-slate-400"
                     />
-                    <button onClick={confirmCreateFolder} className="p-1 text-green-500 hover:bg-green-500/10 rounded">
+                    <button
+                      onClick={confirmCreateFolder}
+                      className="p-1 text-green-500 hover:bg-green-500/10 rounded cursor-pointer"
+                    >
                       <Check size={14} />
                     </button>
-                    <button onClick={cancelCreateFolder} className="p-1 text-red-500 hover:bg-red-500/10 rounded">
+                    <button
+                      onClick={cancelCreateFolder}
+                      className="p-1 text-red-500 hover:bg-red-500/10 rounded cursor-pointer"
+                    >
                       <X size={14} />
                     </button>
                   </div>
                 ) : (
                   <button
                     onClick={startCreateFolder}
-                    className="w-full py-2 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 hover:text-sky-500 border border-dashed border-slate-300 dark:border-slate-700 hover:border-sky-400 rounded-lg transition-all"
+                    className="w-full py-2 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 hover:text-sky-500 border border-dashed border-slate-300 dark:border-slate-700 hover:border-sky-400 rounded-lg transition-all cursor-pointer"
                   >
                     <FolderPlus size={14} /> Nuova Cartella
                   </button>
@@ -1106,7 +1114,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                         <div className="flex items-center gap-1">
                           <button
                             onClick={(e) => deleteFolder(folder.id, e)}
-                            className="p-1 text-slate-400 hover:text-red-500 rounded"
+                            className="p-1 text-slate-400 hover:text-red-500 rounded cursor-pointer"
                           >
                             <Trash2 size={12} />
                           </button>
@@ -1152,7 +1160,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                                   </div>
                                   <button
                                     onClick={(e) => deleteChat(id, e)}
-                                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500"
+                                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 cursor-pointer"
                                   >
                                     <Trash2 size={10} />
                                   </button>
@@ -1201,7 +1209,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                                   e.stopPropagation()
                                   confirmRename(id)
                                 }}
-                                className="text-green-500"
+                                className="text-green-500 cursor-pointer"
                               >
                                 <Check size={14} />
                               </button>
@@ -1247,7 +1255,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                                         e.stopPropagation()
                                         shareChat(id)
                                       }}
-                                      className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3 text-sm text-slate-700 dark:text-slate-200 border-b border-slate-100 dark:border-slate-700/50"
+                                      className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3 text-sm text-slate-700 dark:text-slate-200 border-b border-slate-100 dark:border-slate-700/50 cursor-pointer"
                                     >
                                       <Share size={16} /> Condividi
                                     </button>
@@ -1256,7 +1264,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                                         e.stopPropagation()
                                         startRenaming(id)
                                       }}
-                                      className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3 text-sm text-slate-700 dark:text-slate-200"
+                                      className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3 text-sm text-slate-700 dark:text-slate-200 cursor-pointer"
                                     >
                                       <Edit2 size={16} /> Rinomina
                                     </button>
@@ -1265,14 +1273,14 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                                         e.stopPropagation()
                                         archiveChat(id)
                                       }}
-                                      className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3 text-sm text-slate-700 dark:text-slate-200"
+                                      className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3 text-sm text-slate-700 dark:text-slate-200 cursor-pointer"
                                     >
                                       {chat.archived ? <RotateCcw size={16} /> : <Archive size={16} />}{" "}
                                       {chat.archived ? "Ripristina" : "Archivia"}
                                     </button>
                                     <button
                                       onClick={(e) => deleteChat(id, e)}
-                                      className="w-full text-left px-4 py-3 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-3 text-sm text-red-500 border-t border-slate-100 dark:border-slate-700/50"
+                                      className="w-full text-left px-4 py-3 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-3 text-sm text-red-500 border-t border-slate-100 dark:border-slate-700/50 cursor-pointer"
                                     >
                                       <Trash2 size={16} /> Elimina
                                     </button>
@@ -1289,7 +1297,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                 <div className="pt-4 border-t border-dashed border-slate-200 dark:border-slate-800 mt-4">
                   <button
                     onClick={() => setShowArchived(!showArchived)}
-                    className="w-full flex items-center justify-center gap-2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 py-2"
+                    className="w-full flex items-center justify-center gap-2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 py-2 cursor-pointer"
                   >
                     <Archive size={12} /> {showArchived ? "Nascondi Archiviati" : "Mostra Archiviati"}
                   </button>
@@ -1371,13 +1379,13 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                 <div className="flex items-center gap-4 md:gap-6">
                   <button
                     onClick={() => setSidebarVisible(!sidebarVisible)}
-                    className="p-3 rounded-xl bg-sky-500 text-white shadow-lg shadow-sky-500/40 hover:scale-110 hover:shadow-sky-500/60 transition-all active:scale-95 border-t border-white/20 md:hidden flex items-center justify-center"
+                    className="p-3 rounded-xl bg-sky-500 text-white shadow-lg shadow-sky-500/40 hover:scale-110 hover:shadow-sky-500/60 transition-all active:scale-95 border-t border-white/20 md:hidden flex items-center justify-center cursor-pointer"
                   >
                     <Menu size={24} strokeWidth={3} />
                   </button>
                   <button
                     onClick={() => setSidebarVisible(!sidebarVisible)}
-                    className="p-3 rounded-xl bg-sky-500 text-white shadow-lg shadow-sky-500/40 hover:scale-110 hover:shadow-sky-500/60 transition-all active:scale-95 border-t border-white/20 hidden md:flex items-center justify-center"
+                    className="p-3 rounded-xl bg-sky-500 text-white shadow-lg shadow-sky-500/40 hover:scale-110 hover:shadow-sky-500/60 transition-all active:scale-95 border-t border-white/20 hidden md:flex items-center justify-center cursor-pointer"
                   >
                     <ChevronRight size={24} strokeWidth={3} />
                   </button>
@@ -1420,14 +1428,14 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                 <div className="flex items-center gap-2 md:gap-4">
                   <button
                     onClick={() => setIsDark(!isDark)}
-                    className="p-2.5 rounded-full bg-slate-200/50 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 transition text-slate-600 dark:text-slate-300"
+                    className="p-2.5 rounded-full bg-slate-200/50 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 transition text-slate-600 dark:text-slate-300 cursor-pointer"
                   >
                     {isDark ? <Sun size={20} /> : <Moon size={20} />}
                   </button>
                   <div className="h-8 w-px bg-slate-300 dark:bg-white/10 mx-2 hidden sm:block"></div>
                   <a
-                    href="/"
-                    className="p-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 transition-all border-t border-white/20 flex items-center justify-center group"
+                    href="/dashboard"
+                    className="p-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 transition-all border-t border-white/20 flex items-center justify-center group cursor-pointer"
                   >
                     <Home size={22} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
                   </a>
@@ -1505,7 +1513,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                       <span className="text-slate-700 dark:text-slate-300">{file.name}</span>
                       <button
                         onClick={() => removeFile(idx)}
-                        className="text-slate-400 hover:text-red-500 transition-colors"
+                        className="text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
                       >
                         <X size={14} />
                       </button>
@@ -1516,8 +1524,8 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
               <div className="glass-panel rounded-2xl shadow-2xl border-2 border-sky-200 dark:border-sky-700/50 overflow-hidden">
                 <div className="flex items-end gap-3 p-3 md:p-4">
                   <button
-                    onClick={handleUploadClick}
-                    className="p-3 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-sky-500 dark:hover:bg-sky-500 hover:text-white text-slate-600 dark:text-slate-300 transition-all duration-300 hover:scale-110 active:scale-95 shrink-0"
+                    onClick={handleAttachment}
+                    className="p-3 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-sky-500 dark:hover:bg-sky-500 hover:text-white text-slate-600 dark:text-slate-300 transition-all duration-300 hover:scale-110 active:scale-95 shrink-0 cursor-pointer"
                   >
                     <Paperclip size={20} />
                   </button>
@@ -1540,7 +1548,7 @@ In alternativa, preferisci una consulenza completa per sviluppare un sales plan 
                   <button
                     onClick={sendMessage}
                     disabled={isLoading || (!inputValue.trim() && selectedFiles.length === 0)}
-                    className={`p-3 md:p-3.5 rounded-xl font-bold uppercase tracking-wider transition-all duration-300 shrink-0 border-2 ${isLoading || (!inputValue.trim() && selectedFiles.length === 0) ? "bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 border-transparent cursor-not-allowed" : "bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 text-white shadow-lg shadow-sky-500/40 hover:shadow-sky-500/60 hover:scale-105 active:scale-95 border-sky-400"}`}
+                    className={`p-3 md:p-3.5 rounded-xl font-bold uppercase tracking-wider transition-all duration-300 shrink-0 border-2 ${isLoading || (!inputValue.trim() && selectedFiles.length === 0) ? "bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 border-transparent cursor-not-allowed" : "bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 text-white shadow-lg shadow-sky-500/40 hover:shadow-sky-500/60 hover:scale-105 active:scale-95 border-sky-400 cursor-pointer"}`}
                   >
                     <Send size={20} strokeWidth={2.5} />
                   </button>

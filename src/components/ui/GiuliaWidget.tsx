@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 
 const N8N_URL = "https://n8n-c2lq.onrender.com/webhook/4e27c666-aa21-4d92-b78a-34229167245b/chat"
 const AVATAR = "https://www.ai-scaleup.com/wp-content/uploads/2025/03/Giulia-Ai-Team.jpeg"
+const USER_AVATAR = "https://www.shutterstock.com/image-vector/vector-flat-illustration-grayscale-avatar-600nw-2264922221.jpg"
 
 export default function GiuliaWidget() {
   const chatBubbleRef = useRef<HTMLDivElement>(null)
@@ -29,7 +30,7 @@ export default function GiuliaWidget() {
 
     const avatar = document.createElement("div")
     avatar.className = "giulia-message-avatar"
-    avatar.innerHTML = `<img src="${sender === "ai" ? AVATAR : 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23E52B50"%3E%3Cpath d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/%3E%3C/svg%3E'}" alt="${sender}">`
+    avatar.innerHTML = `<img src="${sender === "ai" ? AVATAR : USER_AVATAR}" alt="${sender}">`
 
     const content = document.createElement("div")
     content.className = "giulia-message-content"
@@ -152,14 +153,14 @@ export default function GiuliaWidget() {
   return (
     <>
       <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&display=swap');
 
         .giulia-widget {
           position: fixed;
           bottom: 20px;
           right: 20px;
           z-index: 9999;
-          font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+          font-family: 'Rajdhani', sans-serif;
           contain: layout style;
         }
 
@@ -170,13 +171,13 @@ export default function GiuliaWidget() {
         .giulia-chat-bubble {
           width: 70px;
           height: 70px;
-          background: linear-gradient(135deg, #DC143C 0%, #E63462 100%);
+          background: #E52B50;
           border-radius: 50%;
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 10px 40px rgba(220, 20, 60, 0.4);
+          box-shadow: 0 0 30px rgba(229, 43, 80, 0.4);
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           position: relative;
           overflow: hidden;
@@ -186,7 +187,7 @@ export default function GiuliaWidget() {
 
         .giulia-chat-bubble:hover {
           transform: scale(1.08);
-          box-shadow: 0 14px 50px rgba(220, 20, 60, 0.6);
+          box-shadow: 0 0 40px rgba(229, 43, 80, 0.6);
         }
 
         .giulia-chat-bubble:before {
@@ -219,15 +220,15 @@ export default function GiuliaWidget() {
           right: 20px;
           width: 400px;
           height: 600px;
-          background: rgba(20, 26, 45, 0.75);
-          backdrop-filter: blur(30px);
-          -webkit-backdrop-filter: blur(30px);
+          background: rgba(17, 24, 39, 0.7);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
           border-radius: 20px;
           overflow: hidden;
           display: none;
           flex-direction: column;
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+          border: 1px solid rgba(255, 255, 255, 0.08);
           max-width: calc(100vw - 40px);
           max-height: calc(100vh - 140px);
         }
@@ -249,7 +250,7 @@ export default function GiuliaWidget() {
         }
 
         .giulia-header {
-          background: linear-gradient(135deg, #DC143C 0%, #E63462 100%);
+          background: #E52B50;
           padding: 20px 24px;
           position: relative;
           overflow: hidden;
@@ -341,24 +342,24 @@ export default function GiuliaWidget() {
           flex: 1;
           overflow-y: auto;
           padding: 20px;
-          background: transparent;
+          background: rgba(0, 0, 0, 0.4);
         }
 
         .giulia-chat-messages::-webkit-scrollbar {
-          width: 5px;
+          width: 6px;
         }
 
         .giulia-chat-messages::-webkit-scrollbar-track {
-          background: rgba(0, 0, 0, 0.2);
+          background: transparent;
         }
 
         .giulia-chat-messages::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.15);
+          background: rgba(229, 43, 80, 0.3);
           border-radius: 3px;
         }
 
         .giulia-chat-messages::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.25);
+          background: rgba(229, 43, 80, 0.5);
         }
 
         .giulia-message {
@@ -406,20 +407,20 @@ export default function GiuliaWidget() {
         }
 
         .giulia-message.ai .giulia-message-content {
-          background: rgba(25, 31, 48, 0.5);
+          background: rgba(255, 255, 255, 0.1);
           backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
           color: #e5e5e5;
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.05);
           border-radius: 14px 14px 14px 4px;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+          box-shadow: none;
         }
 
         .giulia-message.user .giulia-message-content {
-          background: linear-gradient(135deg, #DC143C 0%, #E63462 100%);
+          background: #E52B50;
           color: white;
           border-radius: 14px 14px 4px 14px;
-          box-shadow: 0 4px 16px rgba(220, 20, 60, 0.3);
+          box-shadow: 0 4px 16px rgba(229, 43, 80, 0.3);
         }
 
         .giulia-typing-indicator {
@@ -431,7 +432,7 @@ export default function GiuliaWidget() {
         .giulia-typing-indicator span {
           width: 8px;
           height: 8px;
-          background: #DC143C;
+          background: #E52B50;
           border-radius: 50%;
           animation: giulia-bounce 1.4s infinite;
         }
@@ -449,10 +450,10 @@ export default function GiuliaWidget() {
 
         .giulia-chat-input-container {
           padding: 18px 20px;
-          background: rgba(12, 17, 32, 0.6);
+          background: rgba(255, 255, 255, 0.05);
           backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
-          border-top: 1px solid rgba(255, 255, 255, 0.08);
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .giulia-input-status {
@@ -484,10 +485,10 @@ export default function GiuliaWidget() {
         .giulia-chat-input {
           flex: 1;
           min-width: 0;
-          background: rgba(20, 28, 45, 0.5);
+          background: rgba(0, 0, 0, 0.5);
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 24px;
           padding: 12px 20px;
           color: white;
@@ -502,15 +503,15 @@ export default function GiuliaWidget() {
         }
 
         .giulia-chat-input:focus {
-          background: rgba(20, 28, 45, 0.6);
-          border-color: #DC143C;
-          box-shadow: 0 0 0 3px rgba(220, 20, 60, 0.15);
+          background: rgba(0, 0, 0, 0.6);
+          border-color: #E52B50;
+          box-shadow: 0 0 0 3px rgba(229, 43, 80, 0.15);
         }
 
         .giulia-send-btn {
           width: 50px;
           height: 50px;
-          background: linear-gradient(135deg, #DC143C 0%, #E63462 100%);
+          background: #E52B50;
           border: none;
           border-radius: 50%;
           color: white;
@@ -519,7 +520,7 @@ export default function GiuliaWidget() {
           align-items: center;
           justify-content: center;
           transition: all 0.3s;
-          box-shadow: 0 6px 20px rgba(220, 20, 60, 0.35);
+          box-shadow: 0 6px 20px rgba(229, 43, 80, 0.35);
           flex-shrink: 0;
           min-width: 50px;
           min-height: 50px;
@@ -527,7 +528,7 @@ export default function GiuliaWidget() {
 
         .giulia-send-btn:hover {
           transform: scale(1.06);
-          box-shadow: 0 8px 28px rgba(220, 20, 60, 0.5);
+          box-shadow: 0 8px 28px rgba(229, 43, 80, 0.5);
         }
 
         .giulia-send-btn:active {
@@ -666,3 +667,5 @@ export default function GiuliaWidget() {
     </>
   )
 }
+
+

@@ -1,1220 +1,1598 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect, useRef } from "react"
-import Link from "next/link"
-import { UserButton } from "@clerk/nextjs"
-import { Home } from 'lucide-react'
-import { marked } from 'marked'
+import {
+  Edit2,
+  Trash2,
+  Check,
+  Copy,
+  Sun,
+  Moon,
+  Zap,
+  MessageSquare,
+  User,
+  Send,
+  Paperclip,
+  ChevronRight,
+  Users,
+  LayoutGrid,
+  ChevronLeft,
+  BrainCircuit,
+  FolderPlus,
+  Folder,
+  FolderOpen,
+  ChevronDown,
+  MoreHorizontal,
+  Share,
+  Archive,
+  X,
+  RotateCcw,
+  FileText,
+  ExternalLink,
+  Menu,
+  Home,
+} from "lucide-react"
 
+// --- TYPES ---
 interface Message {
   text: string
   sender: "ai" | "user"
   time: string
+  files?: string[]
+  raw?: string
 }
 
-interface Chat {
+interface ChatSession {
+  id: string
   messages: Message[]
-  lastUpdated: string
   title: string
+  lastUpdated: string
+  folderId: string | null
+  archived: boolean
+  agentId: string
 }
 
-export default function DanieleAIPage() {
+interface FolderType {
+  id: string
+  name: string
+  createdAt: string
+}
+
+// --- CONSTANTS ---
+const USER_AVATAR =
+  "https://www.shutterstock.com/image-vector/vector-flat-illustration-grayscale-avatar-600nw-2264922221.jpg"
+
+// --- ROBUST MARKDOWN SHIM v4 ---
+const simpleMarkdown = {
+  parse: (text: string) => {
+    if (!text) return ""
+
+    const formatInline = (str: string) => {
+      return str
+        .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900 dark:text-white">$1</strong>')
+        .replace(/__([\s\S]*?)__/g, '<strong class="font-bold text-slate-900 dark:text-white">$1</strong>')
+        .replace(/\*([\s\S]*?)\*/g, '<em class="italic opacity-90">$1</em>')
+        .replace(/_([\s\S]*?)_/g, '<em class="italic opacity-90">$1</em>')
+        .replace(/`([^`]+)`/g, '<code class="bg-black/20 px-1 rounded font-mono text-xs">$1</code>')
+        .replace(/\[([^\]]+)\]$$([^)]+)$$/g, '<a href="$2" target="_blank" class="text-sky-400 hover:underline">$1</a>')
+    }
+
+    const autoBold = (str: string) => {
+      const match = str.match(/^([A-ZÀ-ÖØ-Þ0-9\s&/-]{3,}:)(.*)/)
+      if (match) {
+        return `<strong class="font-bold text-slate-900 dark:text-white">${match[1]}</strong>${formatInline(match[2])}`
+      }
+      return formatInline(str)
+    }
+
+    const lines = text.split("\n")
+    let output = ""
+    let tableBuffer: string[] = []
+    let inList = false
+
+    const flushTable = () => {
+      if (tableBuffer.length === 0) return
+
+      if (tableBuffer.length < 2) {
+        tableBuffer.forEach((line) => {
+          output += `<div class="mb-1">${formatInline(line)}</div>`
+        })
+        tableBuffer = []
+        return
+      }
+
+      let html =
+        '<div class="overflow-x-auto my-3 rounded border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5"><table class="w-full text-left border-collapse text-xs">'
+
+      const headerCols = tableBuffer[0].split("|")
+const headerCells = headerCols.map((c) => c.trim()).filter(Boolean)
+
+html += '<thead class="bg-slate-100 dark:bg-white/10"><tr>'
+headerCells.forEach((cell) => {
+  html += `<th class="p-2 border-b border-slate-200 dark:border-white/10 font-bold text-slate-800 dark:text-white">${formatInline(cell)}</th>`
+})
+html += "</tr></thead><tbody>"
+
+for (let i = 2; i < tableBuffer.length; i++) {
+  const rowCols = tableBuffer[i].split("|")
+  const rowCells = rowCols.map((c) => c.trim()).filter(Boolean)
+  
+  // Only add row if it has actual content
+  if (rowCells.length > 0 && rowCells.some(cell => cell.length > 0)) {
+    html +=
+      '<tr class="border-b border-slate-200 dark:border-white/5 last:border-0 hover:bg-slate-100/50 dark:hover:bg-white/5">'
+    rowCells.forEach((cell) => {
+      html += `<td class="p-2 opacity-90">${formatInline(cell)}</td>`
+    })
+    html += "</tr>"
+  }
+}
+      html += "</tbody></table></div>"
+
+      output += html
+      tableBuffer = []
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim()
+
+      if (line.startsWith("|") && line.endsWith("|")) {
+        if (inList) {
+          output += "</ul>"
+          inList = false
+        }
+        tableBuffer.push(line)
+        continue
+      }
+      flushTable()
+
+      if (line.match(/^[-*]\s/)) {
+        if (!inList) {
+          output += '<ul class="list-disc ml-4 my-2 space-y-1">'
+          inList = true
+        }
+        const content = line.replace(/^[-*]\s+/, "")
+        output += `<li>${autoBold(content)}</li>`
+        continue
+      }
+
+      if (inList && line !== "") {
+        output += "</ul>"
+        inList = false
+      }
+
+      if (line === "") {
+        output += '<div class="h-2"></div>'
+      } else if (line.startsWith("### ")) {
+        output += `<h3 class="text-lg font-bold mt-3 mb-1 text-slate-800 dark:text-white">${formatInline(line.replace(/^###\s/, ""))}</h3>`
+      } else if (line.startsWith("## ")) {
+        output += `<h2 class="text-xl font-bold mt-4 mb-2 border-b border-white/10 pb-1 text-slate-800 dark:text-white">${formatInline(line.replace(/^##\s/, ""))}</h2>`
+      } else {
+        output += `<div class="mb-1 leading-relaxed">${autoBold(line)}</div>`
+      }
+    }
+
+    flushTable()
+    if (inList) output += "</ul>"
+
+    return output
+  },
+}
+
+// --- AGENT DATABASE ---
+const AGENTS_DB: Record<string, any> = {
+  "tony-ai": {
+    name: "Tony AI",
+    role: "Sales Advisor",
+    image: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Tony-AI-strategiest.png",
+    description: "Il tuo consulente vendite digitale con 30 anni di esperienza. Analizzo i dati e ottimizzo il funnel.",
+    primaryColor: "#0ea5e9",
+    accentColor: "#22d3ee",
+    route: "/dashboard/tony-ai",
+  },
+  "mike-ai": {
+    name: "Mike AI",
+    role: "Marketing Manager",
+    image: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Mike-AI-digital-marketing-mg.png",
+    description: "Il tuo stratega di marketing. Definisco funnel e strategie integrate per scalare il business.",
+    primaryColor: "#3b82f6",
+    accentColor: "#60a5fa",
+    route: "/dashboard/mike-ai",
+  },
+  "lara-ai": {
+    name: "Lara AI",
+    role: "Social Media Mgr",
+    image: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Lara-AI-social-strategiest.png",
+    description: "Gestisco i tuoi social media, creo calendari editoriali e massimizzo l'engagement.",
+    primaryColor: "#ec4899",
+    accentColor: "#f472b6",
+    route: "/dashboard/lara-ai",
+  },
+  "simone-ai": {
+    name: "Simone AI",
+    role: "SEO Copywriter",
+    image: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Simone-AI-seo-copy.png",
+    description: "Scrivo contenuti ottimizzati SEO che scalano le classifiche di Google e attraggono traffico.",
+    primaryColor: "#10b981",
+    accentColor: "#34d399",
+    route: "/dashboard/simone-ai",
+  },
+  "niko-ai": {
+    name: "Niko AI",
+    role: "SEO Strategist",
+    image: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Niko-AI.png",
+    description: "Architetto della tua presenza online. Analizzo il sito e pianifico la strategia SEO tecnica.",
+    primaryColor: "#f59e0b",
+    accentColor: "#fbbf24",
+    route: "/dashboard/niko-ai",
+  },
+  "valentina-ai": {
+    name: "Valentina AI",
+    role: "SEO Optimizer",
+    image: "https://www.ai-scaleup.com/wp-content/uploads/2025/03/Valentina-AI-AI-SEO-optimizer.png",
+    description: "Ottimizzo i contenuti esistenti per massimizzare il posizionamento e il CTR.",
+    primaryColor: "#8b5cf6",
+    accentColor: "#a78bfa",
+    route: "/dashboard/valentina-ai",
+  },
+  "alex-ai": {
+    name: "Alex AI",
+    role: "Ads Specialist",
+    image: "https://www.ai-scaleup.com/wp-content/uploads/2025/03/David-AI-Ai-Specialist-social-ads.png",
+    description: "Gestisco le tue campagne pubblicitarie su Meta, Google e LinkedIn per il massimo ROI.",
+    primaryColor: "#ef4444",
+    accentColor: "#f87171",
+    route: "/dashboard/alex-ai",
+  },
+  "aladino-ai": {
+    name: "Aladino AI",
+    role: "New Products",
+    image: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Aladdin-AI-consultant.png",
+    description: "Invento nuovi prodotti e servizi ad alta marginalità per differenziarti sul mercato.",
+    primaryColor: "#6366f1",
+    accentColor: "#818cf8",
+    route: "/dashboard/aladino-ai",
+  },
+  "jim-ai": {
+    name: "Jim AI",
+    role: "Sales Coach",
+    image: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Jim-AI-%E2%80%93-AI-Coach.png",
+    description: "Alleno il tuo team di vendita con simulazioni e role-play per chiudere più contratti.",
+    primaryColor: "#f97316",
+    accentColor: "#fb923c",
+    route: "/dashboard/jim-ai",
+  },
+}
+
+// --- AGENT ROSTER LIST ---
+const AI_TEAM_LIST = [
+  { id: "mike-ai" },
+  { id: "tony-ai" },
+  { id: "lara-ai" },
+  { id: "simone-ai" },
+  { id: "niko-ai" },
+  { id: "valentina-ai" },
+  { id: "alex-ai" },
+  { id: "aladino-ai" },
+  { id: "jim-ai" },
+]
+
+// --- MOCK USER BUTTON ---
+const MockUserButton = () => (
+  <button className="relative w-10 h-10 rounded-full overflow-hidden ring-2 ring-sky-400/50 hover:ring-sky-400 transition-all shadow-[0_0_15px_rgba(14,165,233,0.6)] group cursor-pointer">
+    <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+      <User size={20} className="text-sky-200" />
+    </div>
+  </button>
+)
+
+export default function App() {
+  // --- STATE ---
+  const [activeAgentId, setActiveAgentId] = useState<string>("daniele-ai")
+  const currentAgent = AGENTS_DB[activeAgentId] || AGENTS_DB["daniele-ai"]
+
   const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState("")
+
+  const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [chats, setChats] = useState<{ [key: string]: Chat }>({})
-  const [currentChatId, setCurrentChatId] = useState("default")
   const [sidebarVisible, setSidebarVisible] = useState(true)
+  const [sidebarMode, setSidebarMode] = useState<"chats" | "agents">("chats")
   const [useMemory, setUseMemory] = useState(true)
+  const [chats, setChats] = useState<Record<string, ChatSession>>({})
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null)
+  const [activeMenu, setActiveMenu] = useState<string | null>(null)
+  const [renamingChat, setRenamingChat] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState("")
+  const [pinnedChats, setPinnedChats] = useState<Set<string>>(new Set())
+  const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null)
+  const [isDark, setIsDark] = useState(true)
+
+  // Folder State
+  const [folders, setFolders] = useState<FolderType[]>([])
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
+  const [draggedChatId, setDraggedChatId] = useState<string | null>(null)
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null)
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false)
+  const [newFolderName, setNewFolderName] = useState("")
+  const [showArchived, setShowArchived] = useState(false)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+
+  // --- REFS ---
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const newFolderInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const CURRENT_NAMESPACE = useRef("")
 
   const N8N_ENDPOINT =
     "https://n8n-c2lq.onrender.com/webhook/b53858eb-1e73-4798-80ae-13c0d3323f1a/chat?action=sendMessage"
 
+  // --- INITIALIZATION ---
   useEffect(() => {
-    const generateUUID = () => {
-      return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const savedTheme = localStorage.getItem("theme")
+    if (savedTheme) setIsDark(savedTheme === "dark")
+    else setIsDark(true)
+
+    if (window.innerWidth < 768) {
+      setSidebarVisible(false)
+    }
+
+    const generateUUID = () =>
+      "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
         const r = (Math.random() * 16) | 0
         const v = c === "x" ? r : (r & 0x3) | 0x8
         return v.toString(16)
       })
+
+    let namespace = localStorage.getItem("Namespace")
+    if (!namespace) {
+      namespace = generateUUID()
+      localStorage.setItem("Namespace", namespace)
     }
+    CURRENT_NAMESPACE.current = namespace
 
-    let ns = localStorage.getItem("Namespace")
-    if (!ns) {
-      ns = generateUUID()
-      localStorage.setItem("Namespace", ns)
-    }
-    CURRENT_NAMESPACE.current = ns
-
-    const storedChats = localStorage.getItem("daniele-ai-chats")
-    if (storedChats) {
-      const parsedChats = JSON.parse(storedChats)
-      setChats(parsedChats)
-
-      const sortedChats = (Object.entries(parsedChats) as [string, Chat][]).sort(
-        ([, a], [, b]) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime(),
-      )
-
-      if (sortedChats.length > 0) {
-        const [chatId, chat] = sortedChats[0]
-        setCurrentChatId(chatId)
-        setMessages(chat.messages || [])
-      } else {
-        createInitialMessage()
+    const savedChats = localStorage.getItem("daniele-ai-chats")
+    if (savedChats) {
+      try {
+        const parsedChats = JSON.parse(savedChats) as Record<string, ChatSession>
+        setChats(parsedChats)
+        if (Object.keys(parsedChats).length > 0) {
+          const sorted = Object.entries(parsedChats).sort(
+            ([, a], [, b]) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime(),
+          )
+          const recentChatId = sorted[0][0]
+          setCurrentChatId(recentChatId)
+          setMessages(parsedChats[recentChatId].messages || [])
+          if (parsedChats[recentChatId].agentId) {
+            setActiveAgentId(parsedChats[recentChatId].agentId)
+          }
+        } else {
+          initNewChatForAgent(currentAgent)
+        }
+      } catch (e) {
+        console.error("Failed to parse saved chats", e)
+        initNewChatForAgent(currentAgent)
       }
     } else {
-      createInitialMessage()
+      initNewChatForAgent(currentAgent)
     }
 
-    const storedMemory = localStorage.getItem("daniele-ai-use-memory")
-    setUseMemory(storedMemory !== "false")
-
-    const storedSidebarVisible = localStorage.getItem("daniele-ai-sidebar-visible")
-    setSidebarVisible(storedSidebarVisible !== "false")
+    const savedFolders = localStorage.getItem("daniele-ai-folders")
+    if (savedFolders) {
+      try {
+        setFolders(JSON.parse(savedFolders))
+      } catch (e) {
+        console.error("Failed to parse folders", e)
+      }
+    }
   }, [])
 
-  const createInitialMessage = () => {
-    const initialMessage: Message = {
-      text: "Ciao! Sono Daniele AI, il tuo direct response copywriter di livello mondiale con oltre 30 anni di esperienza nel settore. Come posso supportarti oggi?",
-      sender: "ai",
-      time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add("dark")
+      localStorage.setItem("theme", "dark")
+    } else {
+      document.documentElement.classList.remove("dark")
+      localStorage.setItem("theme", "light")
     }
-    setMessages([initialMessage])
-  }
+  }, [isDark])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
   useEffect(() => {
-    if (messages.length > 0) {
-      saveCurrentChat()
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto"
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + "px"
     }
-  }, [messages])
+  }, [inputValue])
 
-  const saveCurrentChat = (newTitle?: string) => {
-    if (messages.length === 0) return
-
-    let title = newTitle || chats[currentChatId]?.title || "Nuova Conversazione"
-    if (!newTitle) {
-      const firstUser = messages.find((m) => m.sender === "user")
-      if (firstUser) {
-        title = (firstUser.text || "Nuova Conversazione").slice(0, 40)
-      }
+  useEffect(() => {
+    if (isCreatingFolder && newFolderInputRef.current) {
+      newFolderInputRef.current.focus()
     }
+  }, [isCreatingFolder])
 
-    const updatedChats = {
-      ...chats,
-      [currentChatId]: {
-        messages,
-        lastUpdated: new Date().toISOString(),
-        title,
-      },
-    }
-
-    setChats(updatedChats)
-    localStorage.setItem("daniele-ai-chats", JSON.stringify(updatedChats))
-  }
-
-  const loadChat = (chatId: string) => {
-    setCurrentChatId(chatId)
-    const chat = chats[chatId]
-    setMessages(chat.messages || [])
-  }
-
-  const deleteChat = (chatId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!confirm("Sei sicuro di voler eliminare questa conversazione?")) return
-
-    const updatedChats = { ...chats }
-    delete updatedChats[chatId]
-    setChats(updatedChats)
-    localStorage.setItem("daniele-ai-chats", JSON.stringify(updatedChats))
-
-    if (chatId === currentChatId) {
-      const remaining = Object.keys(updatedChats)
-      if (remaining.length > 0) {
-        loadChat(remaining[0])
-      } else {
-        createNewChat()
-      }
+  const switchAgent = (agentId: string) => {
+    const agent = AGENTS_DB[agentId]
+    if (agent && agent.route) {
+      window.open(agent.route, "_blank")
     }
   }
 
-  const createNewChat = () => {
+  const initNewChatForAgent = (agent: any, specificAgentId?: string) => {
+    const targetAgentId = specificAgentId || activeAgentId
     const newChatId = "chat_" + Date.now()
-    setCurrentChatId(newChatId)
-    localStorage.setItem("daniele-ai-session-id", newChatId)
-    createInitialMessage()
-  }
 
-  const formatMessageText = (text: string) => {
-    if (!text) return ''
+    let messageText = `Ciao! Sono **${agent.name}**. ${agent.description} Come posso aiutarti?`
 
-    // Detect if text contains a markdown table
-    const hasTable = /\|.*\|.*\n\s*\|[\s\-:]+\|/m.test(text)
-
-    if (hasTable) {
-      // Use marked for table rendering
-      try {
-        marked.setOptions({
-          gfm: true,
-          breaks: true
-        })
-        return marked.parse(text) as string
-      } catch (e) {
-        console.error("Marked parsing error:", e)
-      }
+    if (agent.name === "Daniele AI") {
+      messageText = `Ciao! Sono Daniele AI, il tuo direct response copywriter di livello mondiale con oltre 30 anni di esperienza nel settore. Come posso supportarti oggi?`
     }
 
-    // Basic formatting for non-table content
-    let formatted = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    formatted = formatted.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    formatted = formatted.replace(/\*(.+?)\*/g, "<em>$1</em>")
-    formatted = formatted.replace(
-      /`([^`]+?)`/g,
-      '<code style="background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 4px; font-family: monospace;">$1</code>',
-    )
-    formatted = formatted.replace(
-      /\[([^\]]+?)\]\((https?:\/\/[^\s)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #235E84; text-decoration: underline;">$1</a>',
-    )
-    formatted = formatted.replace(/\n/g, "<br>")
-    return formatted
-  }
-
-  const sendMessage = async () => {
-    if (!input.trim() || isLoading) return
-
-    const userMessage: Message = {
-      text: input.trim(),
-      sender: "user",
+    const welcomeMsg: Message = {
+      text: messageText,
+      sender: "ai",
       time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
     }
 
-    setMessages((prev) => [...prev, userMessage])
-    setInput("")
+    setCurrentChatId(newChatId)
+    setMessages([welcomeMsg])
+
+    setChats((prev) => {
+      const newChat: ChatSession = {
+        id: newChatId,
+        messages: [welcomeMsg],
+        title: `Missione con ${agent.name}`,
+        lastUpdated: new Date().toISOString(),
+        folderId: null,
+        archived: false,
+        agentId: targetAgentId,
+      }
+      const newChats = { [newChatId]: newChat, ...prev }
+      // </CHANGE> Fixed JSON.JSON.stringify to JSON.stringify on line 474
+      localStorage.setItem("daniele-ai-chats", JSON.stringify(newChats))
+      return newChats
+    })
+  }
+
+  const updateChatState = (chatId: string, updates: Partial<ChatSession>) => {
+    setChats((prev) => {
+      const existing = prev[chatId]
+      if (!existing) return prev // Should not happen if chatId is valid
+      const updatedChat = { ...existing, ...updates }
+      const newChats = { ...prev, [chatId]: updatedChat }
+      // </CHANGE> Fixed JSON.JSON.stringify to JSON.stringify on line 474
+      localStorage.setItem("daniele-ai-chats", JSON.stringify(newChats))
+      return newChats
+    })
+  }
+
+  const createNewChat = () => {
+    initNewChatForAgent(currentAgent)
+    setSidebarVisible(true)
+    setSidebarMode("chats")
+  }
+
+  const loadChat = (chatId: string) => {
+    if (!chats[chatId]) return
+    setCurrentChatId(chatId)
+    setMessages(chats[chatId].messages || [])
+    if (chats[chatId].agentId && chats[chatId].agentId !== activeAgentId) {
+      setActiveAgentId(chats[chatId].agentId)
+    }
+    setActiveMenu(null)
+    if (window.innerWidth < 768) {
+      setSidebarVisible(false)
+    }
+  }
+
+  // --- FOLDER LOGIC ---
+  const confirmCreateFolder = () => {
+    if (!newFolderName.trim()) {
+      setIsCreatingFolder(false)
+      return
+    }
+    const newFolder: FolderType = {
+      id: `folder_${Date.now()}`,
+      name: newFolderName,
+      createdAt: new Date().toISOString(),
+    }
+    const updatedFolders = [...folders, newFolder]
+    setFolders(updatedFolders)
+    localStorage.setItem("daniele-ai-folders", JSON.stringify(updatedFolders))
+    setExpandedFolders((prev) => new Set(prev).add(newFolder.id))
+    setIsCreatingFolder(false)
+    setNewFolderName("")
+  }
+
+  const cancelCreateFolder = () => {
+    setIsCreatingFolder(false)
+    setNewFolderName("")
+  }
+
+  const startCreateFolder = () => {
+    setIsCreatingFolder(true)
+    setNewFolderName("")
+  }
+
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev)
+      if (next.has(folderId)) next.delete(folderId)
+      else next.add(folderId)
+      return next
+    })
+  }
+
+  const deleteFolder = (folderId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm("Eliminare cartella? Le chat torneranno nella lista principale.")) return
+
+    const updatedChats = { ...chats }
+    Object.keys(updatedChats).forEach((key) => {
+      if (updatedChats[key].folderId === folderId) {
+        updatedChats[key].folderId = null
+      }
+    })
+    setChats(updatedChats)
+    localStorage.setItem("daniele-ai-chats", JSON.stringify(updatedChats))
+
+    const updatedFolders = folders.filter((f) => f.id !== folderId)
+    setFolders(updatedFolders)
+    localStorage.setItem("daniele-ai-folders", JSON.stringify(updatedFolders))
+  }
+
+  // --- CONTEXT MENU ACTIONS ---
+  const deleteChat = (chatIdToDelete: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+      e.nativeEvent.stopImmediatePropagation()
+    }
+
+    setActiveMenu(null)
+
+    if (!confirm("Sei sicuro di voler eliminare questa chat?")) return
+
+    const updatedChats = { ...chats }
+    if (!updatedChats[chatIdToDelete]) return
+
+    delete updatedChats[chatIdToDelete]
+    const remainingIds = Object.keys(updatedChats)
+
+    if (remainingIds.length === 0) {
+      const agent = AGENTS_DB[activeAgentId]
+      const newChatId = "chat_" + Date.now()
+      const welcomeMsg: Message = {
+        text: `Ciao! Sono **${agent.name}**. ${agent.description} Come posso aiutarti?`,
+        sender: "ai",
+        time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
+      }
+
+      const newChatState = {
+        [newChatId]: {
+          id: newChatId,
+          messages: [welcomeMsg],
+          title: `Missione con ${agent.name}`,
+          lastUpdated: new Date().toISOString(),
+          folderId: null,
+          archived: false,
+          agentId: activeAgentId,
+        },
+      }
+
+      localStorage.setItem("daniele-ai-chats", JSON.stringify(newChatState))
+      setChats(newChatState)
+      setCurrentChatId(newChatId)
+      setMessages([welcomeMsg])
+    } else {
+      localStorage.setItem("daniele-ai-chats", JSON.stringify(updatedChats))
+      setChats(updatedChats)
+
+      if (chatIdToDelete === currentChatId) {
+        const sorted = remainingIds.sort((a, b) => {
+          const timeA = new Date(updatedChats[a].lastUpdated).getTime() || 0
+          const timeB = new Date(updatedChats[b].lastUpdated).getTime() || 0
+          return timeB - timeA
+        })
+        const nextId = sorted[0]
+        setCurrentChatId(nextId)
+        setMessages(updatedChats[nextId].messages || [])
+      }
+    }
+  }
+
+  const archiveChat = (chatId: string) => {
+    updateChatState(chatId, { archived: !chats[chatId]?.archived })
+    setActiveMenu(null)
+  }
+
+  const shareChat = (chatId: string) => {
+    const url = `${window.location.origin}/chat/${chatId}`
+    navigator.clipboard.writeText(url)
+    alert("Link copiato negli appunti: " + url)
+    setActiveMenu(null)
+  }
+
+  const startRenaming = (chatId: string) => {
+    setRenamingChat(chatId)
+    setRenameValue(chats[chatId]?.title || "")
+    setActiveMenu(null)
+  }
+
+  const confirmRename = (chatId: string) => {
+    if (!renameValue.trim()) {
+      setRenamingChat(null)
+      return
+    }
+    updateChatState(chatId, { title: renameValue.trim() })
+    setRenamingChat(null)
+    setRenameValue("")
+  }
+
+  // --- DRAG & DROP LOGIC ---
+  const handleDragStart = (e: React.DragEvent, chatId: string) => {
+    e.dataTransfer.setData("chatId", chatId)
+    setDraggedChatId(chatId)
+  }
+
+  const handleDragOver = (e: React.DragEvent, folderId: string | null) => {
+    e.preventDefault()
+    setDragOverFolderId(folderId)
+  }
+
+  const handleDrop = (e: React.DragEvent, targetFolderId: string | null) => {
+    e.preventDefault()
+    setDragOverFolderId(null)
+    const chatId = e.dataTransfer.getData("chatId")
+    if (!chatId || !chats[chatId]) return
+    if (chats[chatId].folderId === targetFolderId) return
+
+    updateChatState(chatId, { folderId: targetFolderId })
+
+    if (targetFolderId) {
+      setExpandedFolders((prev) => new Set(prev).add(targetFolderId))
+    }
+    setDraggedChatId(null)
+  }
+
+  // --- MESSAGING ---
+  const formatMessageText = (text: string) => {
+    if (!text) return ""
+    try {
+      return simpleMarkdown.parse(text)
+    } catch (e) {
+      return text
+    }
+  }
+
+  // --- Message Sending Logic ---
+  const sendMessage = async () => {
+    if (!inputValue.trim() && selectedFiles.length === 0) return
+
     setIsLoading(true)
 
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto"
+    const userMessage: Message = {
+      text: inputValue,
+      sender: "user",
+      time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
+      files: selectedFiles.map((f) => f.name),
     }
 
-    const thinkingMessage: Message = {
-      text: "...",
-      sender: "ai",
-      time: "",
+    let currentMessages = [...messages, userMessage]
+
+    // Handle creating a new chat if none is active
+    let currentChatIdForSend = currentChatId
+    if (!currentChatIdForSend) {
+      const newChatId = "chat_" + Date.now()
+      const agent = AGENTS_DB[activeAgentId]
+      const welcomeMsg: Message = {
+        text: `Ciao! Sono **${agent.name}**. ${agent.description} Come posso aiutarti?`,
+        sender: "ai",
+        time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
+      }
+      const newChat: ChatSession = {
+        id: newChatId,
+        title: `Missione con ${agent.name}`,
+        messages: [welcomeMsg, userMessage],
+        lastUpdated: new Date().toISOString(),
+        folderId: null,
+        archived: false,
+        agentId: activeAgentId,
+      }
+
+      const updatedChatsState = { ...chats, [newChatId]: newChat }
+      setChats(updatedChatsState)
+      setCurrentChatId(newChatId)
+      currentChatIdForSend = newChatId
+      currentMessages = [welcomeMsg, userMessage]
+      setMessages(currentMessages)
+      localStorage.setItem("daniele-ai-chats", JSON.stringify(updatedChatsState))
+    } else {
+      // Add user message to existing chat
+      const updatedChatSession = {
+        ...chats[currentChatIdForSend],
+        messages: currentMessages,
+        lastUpdated: new Date().toISOString(),
+        title: chats[currentChatIdForSend]?.title || inputValue.slice(0, 30) || "Nuova Missione",
+      }
+      const updatedChatsState = { ...chats, [currentChatIdForSend]: updatedChatSession }
+      setChats(updatedChatsState)
+      setMessages(currentMessages)
+      localStorage.setItem("daniele-ai-chats", JSON.stringify(updatedChatsState))
     }
-    setMessages((prev) => [...prev, thinkingMessage])
+
+    // Add a placeholder for the AI's response
+    const aiResponsePlaceholder: Message = { text: "...", sender: "ai", time: "", raw: "" }
+    setMessages((prev) => [...prev, aiResponsePlaceholder])
 
     try {
       const sessionId = localStorage.getItem("daniele-ai-session-id") || "session_" + Date.now()
-      localStorage.setItem("daniele-ai-session-id", sessionId)
+      if (!currentChatIdForSend) throw new Error("currentChatIdForSend is null") // Should not happen
 
       const response = await fetch(N8N_ENDPOINT, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "text/event-stream",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          chatInput: userMessage.text,
+          chatInput:
+            inputValue + (selectedFiles.length ? ` [Attached: ${selectedFiles.map((f) => f.name).join(", ")}]` : ""),
           sessionId: sessionId,
           useMemory: useMemory,
-          metadata: { namespace: CURRENT_NAMESPACE.current, source: "daniele-ai-chat" },
+          metadata: { namespace: CURRENT_NAMESPACE.current, source: activeAgentId },
+          chatId: currentChatIdForSend,
         }),
       })
 
-      if (!response.ok) throw new Error("HTTP error " + response.status)
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+      if (!response.body) throw new Error("No response body")
 
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder("utf-8")
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
       let buffer = ""
       let rawText = ""
-      let streamMode: "sse" | "jsonl" | null = null
-      let generatedTitle: string | null = null
+      let isFirstChunk = true
 
-      const handleEvent = (jsonStr: string) => {
-        try {
-          const obj = JSON.parse(jsonStr)
-          if (obj.type === "item" && typeof obj.content === "string") {
-            rawText += obj.content
-            setMessages((prev) => {
-              const newMessages = [...prev]
-              const lastMsg = newMessages[newMessages.length - 1]
-              if (lastMsg && lastMsg.sender === "ai") {
-                lastMsg.text = rawText
-                lastMsg.time = new Date().toLocaleTimeString("it-IT", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
-              }
-              return newMessages
-            })
-          } else if (obj.type === "end" && obj.title) {
-            generatedTitle = obj.title
-          }
-        } catch (e) {
-          // Ignore parse errors
-        }
-      }
-
-      while (reader) {
+      while (true) {
         const { value, done } = await reader.read()
         if (done) break
-
         buffer += decoder.decode(value, { stream: true })
 
-        if (!streamMode) {
-          const probe = buffer.trimStart()
-          if (probe.startsWith("data:")) streamMode = "sse"
-          else if (probe.startsWith("{") || probe.startsWith("[")) streamMode = "jsonl"
-          else streamMode = "jsonl"
-        }
+        const lines = buffer.split(/\r?\n/)
+        buffer = lines.pop() || ""
 
-        if (streamMode === "sse") {
-          let idx
-          while ((idx = buffer.indexOf("\n\n")) !== -1) {
-            const eventBlock = buffer.slice(0, idx)
-            buffer = buffer.slice(idx + 2)
-            const dataLines = eventBlock.split("\n").filter((l) => l.startsWith("data:"))
-            if (dataLines.length) {
-              const jsonStr = dataLines
-                .map((l) => l.replace(/^data:\s?/, ""))
-                .join("\n")
-                .trim()
-              if (jsonStr) handleEvent(jsonStr)
+        for (const line of lines) {
+          const trimmed = line.replace(/^data:\s?/, "").trim()
+          if (!trimmed) continue
+          try {
+            const obj = JSON.parse(trimmed)
+            if (obj.type === "item" && typeof obj.content === "string") {
+              if (isFirstChunk) {
+                rawText = obj.content
+                isFirstChunk = false
+              } else {
+                rawText += obj.content
+              }
+              setMessages((prev) => {
+                const newMsgs = [...prev]
+                newMsgs[newMsgs.length - 1].text = rawText
+                return newMsgs
+              })
+            } else if (obj.type === "done") {
+              break
             }
-          }
-        } else {
-          const lines = buffer.split(/\r?\n/)
-          buffer = lines.pop() || ""
-          for (const line of lines) {
-            const trimmed = line.trim()
-            if (trimmed) handleEvent(trimmed)
+          } catch (e) {
+            console.error("Failed to parse JSON chunk:", e, "Line:", trimmed)
           }
         }
       }
 
-      const leftover = buffer.trim()
-      if (leftover) {
-        if (streamMode === "sse") {
-          const dataLines = leftover.split("\n").filter((l) => l.startsWith("data:"))
-          if (dataLines.length) {
-            const jsonStr = dataLines
-              .map((l) => l.replace(/^data:\s?/, ""))
-              .join("\n")
-              .trim()
-            if (jsonStr) handleEvent(jsonStr)
-          }
-        } else {
-          handleEvent(leftover)
-        }
+      // Finalize AI message
+      const finalAiMessage: Message = {
+        text: rawText.trim() || "La risposta è stata completata.",
+        sender: "ai",
+        time: new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
+        raw: rawText,
       }
 
       setMessages((prev) => {
-        const newMessages = [...prev]
-        const lastMsg = newMessages[newMessages.length - 1]
-        if (lastMsg && lastMsg.sender === "ai" && lastMsg.text === "...") {
-          lastMsg.text = "Mi dispiace, non ho ricevuto una risposta valida. Riprova per favore."
-          lastMsg.time = new Date().toLocaleTimeString("it-IT", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })
+        const newMsgs = [...prev]
+        newMsgs[newMsgs.length - 1] = finalAiMessage
+        // Update the chat in state and localStorage
+        const updatedChatSession = {
+          ...chats[currentChatIdForSend!],
+          messages: newMsgs,
+          lastUpdated: new Date().toISOString(),
         }
-        return newMessages
+        const updatedChatsState = { ...chats, [currentChatIdForSend!]: updatedChatSession }
+        localStorage.setItem("daniele-ai-chats", JSON.stringify(updatedChatsState))
+        setChats(updatedChatsState)
+        return newMsgs
       })
-
-      if (generatedTitle) {
-        saveCurrentChat(generatedTitle)
-      }
     } catch (error) {
       console.error("Error sending message:", error)
       setMessages((prev) => {
-        const newMessages = [...prev]
-        const lastMsg = newMessages[newMessages.length - 1]
-        if (lastMsg && lastMsg.sender === "ai") {
-          lastMsg.text = "Errore di connessione. Riprova più tardi."
-          lastMsg.time = new Date().toLocaleTimeString("it-IT", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        }
-        return newMessages
+        const newMsgs = [...prev]
+        newMsgs[newMsgs.length - 1].text =
+          `Errore: Impossibile inviare il messaggio. ${error instanceof Error ? error.message : String(error)}`
+        return newMsgs
       })
     } finally {
       setIsLoading(false)
+      setInputValue("")
+      setSelectedFiles([])
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage()
-    }
+  const handleAttachment = () => fileInputRef.current?.click()
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.length) setSelectedFiles((prev) => [...prev, ...Array.from(e.target.files!)])
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value)
-    e.target.style.height = "auto"
-    e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"
+  const removeFile = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const sortedChats = (Object.entries(chats) as [string, Chat][]).sort(
-    ([, a], [, b]) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime(),
-  )
+  const handleCopyMessage = async (text: string, index: number) => {
+  console.log("🔧 TABLE COPY FIX v3.0 - ACTIVE")
+  
+  try {
+    let htmlContent = formatMessageText(text)
+    console.log("📋 Original HTML:", htmlContent.substring(0, 300))
+
+    // STEP 1: Remove wrapper divs from tables
+    htmlContent = htmlContent.replace(
+      /<div[^>]*class="[^"]*overflow-x-auto[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/div>/g,
+      '$1'
+    )
+
+    // STEP 2: Use DOM parser to clean empty rows
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(htmlContent, 'text/html')
+    
+    // Find all table rows and remove empty ones
+    const allRows = doc.querySelectorAll('tr')
+    allRows.forEach(row => {
+      const cells = row.querySelectorAll('td, th')
+      let hasContent = false
+      
+      // Check if any cell has actual text content
+      cells.forEach(cell => {
+        const content = cell.textContent?.trim() || ''
+        if (content.length > 0) {
+          hasContent = true
+        }
+      })
+      
+      // Remove row if it has cells but no content
+      if (!hasContent && cells.length > 0) {
+        console.log("🗑️ Removing empty row with", cells.length, "empty cells")
+        row.remove()
+      }
+    })
+    
+    // Get the cleaned HTML
+    htmlContent = doc.body.innerHTML
+    console.log("✅ After cleaning:", htmlContent.substring(0, 300))
+
+    // STEP 3: Apply inline styles
+    htmlContent = htmlContent
+      .replace(/<strong[^>]*>/g, '<strong style="font-weight: 700; color: #0f172a;">')
+      .replace(/<em[^>]*>/g, '<em style="font-style: italic; color: #334155;">')
+      .replace(
+        /<code[^>]*>/g,
+        '<code style="background-color: #f1f5f9; padding: 2px 4px; border-radius: 4px; font-family: monospace; font-size: 0.9em; border: 1px solid #e2e8f0;">',
+      )
+      .replace(
+        /<ul[^>]*>/g,
+        '<ul style="margin-left: 20px; list-style-type: disc; padding-left: 20px; margin-bottom: 10px;">',
+      )
+      .replace(/<li[^>]*>/g, '<li style="margin-bottom: 4px;">')
+      .replace(
+        /<h3[^>]*>/g,
+        '<h3 style="font-size: 18px; font-weight: bold; margin-top: 15px; margin-bottom: 5px; color: #0f172a;">',
+      )
+      .replace(
+        /<h2[^>]*>/g,
+        '<h2 style="font-size: 22px; font-weight: bold; border-bottom: 2px solid #e2e8f0; margin-top: 20px; margin-bottom: 10px; color: #0f172a;">',
+      )
+      .replace(
+        /<table[^>]*>/g,
+        '<table style="border-collapse: collapse; width: 100%; border: 1px solid #cbd5e1; font-family: sans-serif; font-size: 14px; margin: 10px 0;">',
+      )
+      .replace(/<thead[^>]*>/g, '<thead style="background-color: #f1f5f9;">')
+      .replace(
+        /<th[^>]*>/g,
+        '<th style="border: 1px solid #94a3b8; padding: 10px; text-align: left; font-weight: bold; background-color: #f1f5f9; color: #0f172a;">',
+      )
+      .replace(/<td[^>]*>/g, '<td style="border: 1px solid #cbd5e1; padding: 8px; color: #334155;">')
+      .replace(/<tr[^>]*>/g, '<tr>')
+
+    const finalHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"></head>
+      <body style="font-family: sans-serif; color: #0f172a; line-height: 1.6;">
+        ${htmlContent}
+      </body>
+      </html>
+    `
+
+    const blobHtml = new Blob([finalHtml], { type: "text/html" })
+    const blobText = new Blob([text], { type: "text/plain" })
+
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        "text/html": blobHtml,
+        "text/plain": blobText,
+      }),
+    ])
+
+    console.log("✅ Copy completed successfully!")
+    setCopiedMessageIndex(index)
+    setTimeout(() => setCopiedMessageIndex(null), 2000)
+  } catch (err) {
+    console.error("❌ Rich copy failed:", err)
+    navigator.clipboard.writeText(text)
+    setCopiedMessageIndex(index)
+    setTimeout(() => setCopiedMessageIndex(null), 2000)
+  }
+}
 
   return (
     <>
-      <style jsx global>{`
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
+      <link
+        href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet"
+      />
 
-        body {
-          font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      <style>{`
+        :root {
+            --brand-dark: #020617;
+            --brand-primary: #0ea5e9;
+            --font-tech: 'Rajdhani', sans-serif;
         }
+        body { font-family: var(--font-tech); background-color: #f8fafc; color: #0f172a; overflow: hidden; }
+        .dark body { background-color: var(--brand-dark); color: #f8fafc; }
+        
+        .glass-panel { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.5); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05); }
+        .dark .glass-panel { background: rgba(2, 6, 23, 0.85); border: 1px solid rgba(14, 165, 233, 0.15); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4); }
 
-        ::-webkit-scrollbar {
-          width: 8px;
-          height: 8px;
-        }
+        @keyframes brain-float { 0% { transform: translateY(0px); } 50% { transform: translateY(-6px); } 100% { transform: translateY(0px); } }
+        .animate-float { animation: brain-float 6s ease-in-out infinite; }
+        
+        @keyframes brain-wave-flow { 0% { background-position: 0% 50%; opacity: 0.2; } 50% { background-position: 100% 50%; opacity: 0.5; } 100% { background-position: 0% 50%; opacity: 0.2; } }
+        .brainwave-overlay { background: linear-gradient(90deg, transparent, rgba(14,165,233,0.3), transparent, rgba(34,211,238,0.3), transparent); background-size: 200% 100%; animation: brain-wave-flow 3s linear infinite; pointer-events: none; }
 
-        ::-webkit-scrollbar-track {
-          background: #f1f5f9;
-        }
+        @keyframes synapse-pulse { 0% { box-shadow: 0 -10px 40px rgba(14,165,233,0.1); border-top-color: rgba(14,165,233,0.3); } 50% { box-shadow: 0 -20px 60px rgba(14,165,233,0.4); border-top-color: rgba(14,165,233,0.8); } 100% { box-shadow: 0 -10px 40px rgba(14,165,233,0.1); border-top-color: rgba(14,165,233,0.3); } }
+        .synapse-active { animation: synapse-pulse 1.5s ease-in-out infinite; position: relative; }
 
-        ::-webkit-scrollbar-thumb {
-          background: #cbd5e1;
-          border-radius: 4px;
+        @keyframes neural-grid-move { 0% { transform: translateY(0); } 100% { transform: translateY(50px); } }
+        .neural-grid-active { 
+            background-image: linear-gradient(0deg, transparent 24%, rgba(14, 165, 233, 0.05) 25%, rgba(14, 165, 233, 0.05) 26%, transparent 27%, transparent 74%, rgba(14, 165, 233, 0.05) 75%, rgba(14, 165, 233, 0.05) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(14, 165, 233, 0.05) 25%, rgba(14, 165, 233, 0.05) 26%, transparent 27%, transparent 74%, rgba(14, 165, 233, 0.05) 75%, rgba(14, 165, 233, 0.05) 76%, transparent 77%, transparent);
+            background-size: 50px 50px;
+            animation: neural-grid-move 3s linear infinite;
         }
+        
+        @keyframes synapse-beam { 0% { opacity: 0; transform: translateY(20px) scale(0.8); } 50% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-20px) scale(1.2); } }
+        .synapse-beam::before { content: ''; position: absolute; width: 100%; height: 100%; top: 0; left: 0; background: radial-gradient(circle, rgba(14,165,233,0.2) 0%, transparent 70%); animation: synapse-beam 2s infinite; pointer-events: none; z-index: -1; }
 
-        ::-webkit-scrollbar-thumb:hover {
-          background: #94a3b8;
+        .markdown-body table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 1.5em 0; border-radius: 12px; overflow: hidden; border: 1px solid rgba(148, 163, 184, 0.2); font-size: 0.95em; }
+        .dark .markdown-body table { border-color: rgba(30, 41, 59, 0.8); }
+        .markdown-body th { background-color: #f1f5f9; color: #334155; font-weight: 700; text-align: left; padding: 12px 16px; border-bottom: 2px solid rgba(148, 163, 184, 0.3); }
+        .dark .markdown-body th { background-color: #1e293b; color: #cbd5e1; border-bottom-color: rgba(51, 65, 85, 0.8); }
+        .markdown-body td { padding: 12px 16px; border-bottom: 1px solid rgba(148, 163, 184, 0.1); }
+        .dark .markdown-body td { border-bottom-color: rgba(51, 65, 85, 0.4); }
+        .markdown-body tr:nth-child(even) { background-color: rgba(241, 245, 249, 0.4); }
+        .dark .markdown-body tr:nth-child(even) { background-color: rgba(30, 41, 59, 0.3); }
+        
+        .markdown-body p { margin-bottom: 1.25em; line-height: 1.6; }
+        .markdown-body strong { font-weight: 700; color: inherit; }
+        .markdown-body ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 1.25em; }
+        
+        .btn-electric {
+           background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+           box-shadow: 0 0 15px rgba(14,165,233,0.5);
+           transition: all 0.3s ease;
         }
-
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+        .btn-electric:hover {
+           box-shadow: 0 0 25px rgba(14,165,233,0.8);
+           transform: translateY(-1px);
         }
-
-        @keyframes typing {
-          0%,
-          60%,
-          100% {
-            transform: translateY(0);
-            opacity: 0.4;
-          }
-          30% {
-            transform: translateY(-10px);
-            opacity: 1;
-          }
-        }
-
-        /* Table styling for markdown tables */
-        .daniele-message-content table {
-          width: 100% !important;
-          display: table !important;
-          border-collapse: collapse !important;
-          margin: 16px 0 !important;
-          font-size: 14px !important;
-          background-color: #ffffff !important;
-          color: #1e293b !important;
-          border-radius: 8px !important;
-          overflow: hidden !important;
-          border: 2px solid #235E84 !important;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
-        }
-
-        .daniele-message-content th {
-          background-color: #235E84 !important;
-          color: #ffffff !important;
-          padding: 12px 15px !important;
-          text-align: left !important;
-          font-weight: 700 !important;
-          border-bottom: 2px solid #1a4c6e !important;
-        }
-
-        .daniele-message-content td {
-          background-color: #ffffff !important;
-          color: #334155 !important;
-          padding: 12px 15px !important;
-          border-bottom: 1px solid #e2e8f0 !important;
-          border-right: 1px solid #e2e8f0 !important;
-          line-height: 1.5 !important;
-        }
-
-        .daniele-message-content tr:nth-child(even) td {
-          background-color: #f8fafc !important;
-        }
-
-        .daniele-message-content tr:last-child td {
-          border-bottom: none !important;
-        }
-
-        /* User message table styles */
-        .daniele-message.user .daniele-message-content table {
-          background-color: rgba(255,255,255,0.1) !important;
-          border-color: rgba(255,255,255,0.3) !important;
-        }
-
-        .daniele-message.user .daniele-message-content th {
-          background-color: rgba(255,255,255,0.2) !important;
-          color: #ffffff !important;
-        }
-
-        .daniele-message.user .daniele-message-content td {
-          background-color: transparent !important;
-          color: #ffffff !important;
-          border-color: rgba(255,255,255,0.2) !important;
-        }
-
-        .daniele-message.user .daniele-message-content tr:nth-child(even) td {
-          background-color: rgba(255,255,255,0.05) !important;
-        }
-
-        @media (max-width: 1024px) {
-          .sidebar {
-            width: 280px !important;
-            min-width: 280px !important;
-          }
-          .chat-messages {
-            padding: 30px 40px !important;
-          }
-          .input-container {
-            padding: 20px 40px !important;
-          }
-        }
-
-        @media (max-width: 768px) {
-          .sidebar {
-            position: fixed !important;
-            left: 0;
-            top: 0;
-            height: 100vh;
-            z-index: 1000;
-            transform: translateX(-100%);
-            box-shadow: none;
-          }
-          .sidebar.visible {
-            transform: translateX(0);
-            box-shadow: 4px 0 12px rgba(0, 0, 0, 0.1);
-          }
-          .chat-header {
-            padding: 16px 20px !important;
-            min-height: 70px !important;
-          }
-          .chat-header-title {
-            font-size: 16px !important;
-          }
-          .chat-messages {
-            padding: 20px 16px !important;
-          }
-          .message-container {
-            max-width: 100% !important;
-          }
-          .input-container {
-            padding: 16px !important;
-          }
-          .hamburger-menu {
-            display: flex !important;
-          }
-          .desktop-toggle {
-            display: none !important;
-          }
-          .close-sidebar-btn {
-            display: flex !important;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .chat-header {
-            padding: 12px 16px !important;
-            min-height: 60px !important;
-          }
-          .chat-header-title {
-            font-size: 14px !important;
-          }
-          .sidebar-header {
-            padding: 16px !important;
-          }
-          .sidebar-title {
-            font-size: 18px !important;
-          }
-          .avatar-large {
-            width: 32px !important;
-            height: 32px !important;
-          }
-          .avatar-small {
-            width: 32px !important;
-            height: 32px !important;
-          }
-          .new-chat-btn {
-            padding: 12px 16px !important;
-            font-size: 13px !important;
-          }
-          .chat-messages {
-            padding: 16px 12px !important;
-          }
-          .message-bubble {
-            padding: 16px 18px !important;
-            font-size: 14px !important;
-          }
-          .input-container {
-            padding: 12px !important;
-          }
-        }
-
-        @media (max-width: 360px) {
-          .chat-header-title {
-            font-size: 12px !important;
-          }
-          .sidebar-title {
-            font-size: 16px !important;
-          }
-          .avatar-large {
-            width: 28px !important;
-            height: 28px !important;
-          }
-          .message-bubble {
-            padding: 14px 16px !important;
-            font-size: 13px !important;
-          }
-        }
-
-        .hamburger-menu {
-          display: none;
-        }
-
-        .close-sidebar-btn {
-          display: none;
-        }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.2); border-radius: 2px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(30, 41, 59, 0.5); }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(14, 165, 233, 0.5); }
       `}</style>
 
-      <div style={{ width: "100%", height: "100vh", display: "flex", overflow: "hidden", background: "#ffffff" }}>
-        {/* Sidebar */}
+      <div className={`flex h-screen w-full bg-tech-grid azure-glow-bg ${isDark ? "dark" : ""}`}>
         <div
-          className={`sidebar ${sidebarVisible ? "visible" : ""}`}
-          style={{
-            width: sidebarVisible ? "320px" : "0",
-            minWidth: sidebarVisible ? "320px" : "0",
-            background: "#ffffff",
-            borderRight: sidebarVisible ? "1px solid #e2e8f0" : "none",
-            display: "flex",
-            flexDirection: "column",
-            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-            overflow: "hidden",
-          }}
+          className={`glass-panel flex flex-col transition-all duration-500 ease-[cubic-bezier(0,0,0.2,1)] z-40 
+                        ${sidebarVisible ? "w-80 translate-x-0" : "w-0 -translate-x-full opacity-0"} 
+                        fixed md:relative h-full border-r border-sky-100 dark:border-sky-900/30`}
         >
-          {/* Sidebar Header */}
-          <div className="sidebar-header" style={{ padding: "20px", borderBottom: "1px solid #e2e8f0" }}>
-            <div
-              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <div
-                  className="avatar-large"
-                  style={{
-                    width: "40px",
-                    height: "40px",
-                    borderRadius: "50%",
-                    overflow: "hidden",
-                    background: "#235E84",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <img
-                    src="https://www.ai-scaleup.com/wp-content/uploads/2025/11/daniele_ai_direct_response_copywriter.png"
-                    alt="Daniele AI"
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                  />
+          <div className="p-6 border-b border-sky-100 dark:border-sky-900/30 bg-gradient-to-b from-white/50 to-transparent dark:from-sky-900/20">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="relative group cursor-pointer">
+                  <div className="w-12 h-12 rounded-full p-0.5 bg-gradient-to-tr from-sky-400 to-cyan-300 shadow-lg shadow-sky-400/20 group-hover:shadow-sky-400/50 transition-all duration-300">
+                    <img
+                      src={currentAgent.image || "/placeholder.svg"}
+                      className="w-full h-full rounded-full object-cover bg-slate-900"
+                      alt={currentAgent.name}
+                    />
+                  </div>
+                  <div className="absolute bottom-0.5 right-0 w-3 h-3 bg-emerald-400 border-2 border-white dark:border-slate-900 rounded-full animate-pulse"></div>
                 </div>
-                <div
-                  className="sidebar-title"
-                  style={{ fontFamily: "Montserrat, sans-serif", fontSize: "20px", fontWeight: 600, color: "#475569" }}
-                >
-                  Daniele AI
-                </div>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-white tracking-wide font-tech">AI TEAM</h2>
               </div>
               <button
-                className="close-sidebar-btn"
-                onClick={() => {
-                  setSidebarVisible(false)
-                  localStorage.setItem("daniele-ai-sidebar-visible", "false")
-                }}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "#475569",
-                  cursor: "pointer",
-                  padding: "8px",
-                  borderRadius: "4px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "20px",
-                  lineHeight: 1,
-                }}
-                title="Chiudi menu"
+                onClick={() => setSidebarVisible(false)}
+                className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 transition-colors md:hidden cursor-pointer"
               >
-                ×
+                <ChevronLeft size={20} />
               </button>
             </div>
 
             <button
               onClick={createNewChat}
-              className="new-chat-btn"
-              style={{
-                background: "#235E84",
-                border: "none",
-                color: "#ffffff",
-                padding: "14px 20px",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontSize: "14px",
-                fontWeight: 500,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-                width: "100%",
-                transition: "all 0.2s ease",
-              }}
+              className="w-full py-3.5 px-4 btn-electric text-white font-bold rounded-xl flex items-center justify-center gap-2 uppercase tracking-wider text-sm border border-white/10 cursor-pointer"
             >
-              <span>+</span> Nuova Chat
+              <MessageSquare size={18} strokeWidth={2.5} /> Nuova Missione
             </button>
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                paddingTop: "16px",
-                fontSize: "14px",
-                fontWeight: 500,
-                color: "#475569",
-              }}
-            >
-              <label htmlFor="memoryToggle">Usa Memoria</label>
-              <label style={{ position: "relative", display: "inline-block", width: "44px", height: "24px" }}>
-                <input
-                  type="checkbox"
-                  id="memoryToggle"
-                  checked={useMemory}
-                  onChange={(e) => {
-                    setUseMemory(e.target.checked)
-                    localStorage.setItem("daniele-ai-use-memory", String(e.target.checked))
-                  }}
-                  style={{ opacity: 0, width: 0, height: 0 }}
-                />
-                <span
-                  style={{
-                    position: "absolute",
-                    cursor: "pointer",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: useMemory ? "#235E84" : "#ccc",
-                    transition: "0.4s",
-                    borderRadius: "24px",
-                  }}
-                >
-                  <span
-                    style={{
-                      position: "absolute",
-                      content: '""',
-                      height: "18px",
-                      width: "18px",
-                      left: "3px",
-                      bottom: "3px",
-                      background: "white",
-                      transition: "0.4s",
-                      borderRadius: "50%",
-                      transform: useMemory ? "translateX(20px)" : "translateX(0)",
-                    }}
-                  />
-                </span>
-              </label>
-            </div>
           </div>
 
-          {/* Chat List */}
-          <div style={{ flex: "0 1 auto", maxHeight: "40%", overflowY: "auto", padding: "16px 20px", minHeight: 0 }}>
-            {sortedChats.map(([id, chat]) => {
-              const dateObj = new Date(chat.lastUpdated)
-              const monthNames = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"]
-              const formattedDate = `${dateObj.getDate()} ${monthNames[dateObj.getMonth()]} h. ${String(dateObj.getHours()).padStart(2, "0")}:${String(dateObj.getMinutes()).padStart(2, "0")}`
+          <div className="flex p-2 gap-1 mx-4 mt-4 bg-slate-100/80 dark:bg-slate-900/50 rounded-xl border border-sky-200/50 dark:border-sky-700/30 shadow-inner">
+            <button
+              onClick={() => setSidebarMode("chats")}
+              className={`flex-1 py-2 text-xs font-bold uppercase tracking-wide rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer
+                    ${
+                      sidebarMode === "chats"
+                        ? "bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm border border-sky-100 dark:border-sky-600/30"
+                        : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    }`}
+            >
+              <LayoutGrid size={14} /> Missioni
+            </button>
+            <button
+              onClick={() => setSidebarMode("agents")}
+              className={`flex-1 py-2 text-xs font-bold uppercase tracking-wide rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer
+                    ${
+                      sidebarMode === "agents"
+                        ? "bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm border border-sky-100 dark:border-sky-600/30"
+                        : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    }`}
+            >
+              <Users size={14} /> AI Team
+            </button>
+          </div>
 
-              return (
-                <div
-                  key={id}
-                  onClick={() => loadChat(id)}
-                  style={{
-                    padding: "16px",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    marginBottom: "2px",
-                    background: id === currentChatId ? "#E3F2FD" : "transparent",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    transition: "all 0.2s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (id !== currentChatId) e.currentTarget.style.background = "#E3F2FD"
-                  }}
-                  onMouseLeave={(e) => {
-                    if (id !== currentChatId) e.currentTarget.style.background = "transparent"
-                  }}
-                >
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 500, fontSize: "14px", color: "#475569", marginBottom: "4px" }}>
-                      {chat.title || "Nuova Conversazione"}
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#64748b" }}>{formattedDate}</div>
+          <div
+            className="flex-1 overflow-y-auto p-3 space-y-1 mt-2 custom-scrollbar"
+            onDragOver={(e) => handleDragOver(e, null)}
+            onDrop={(e) => handleDrop(e, null)}
+          >
+            {sidebarMode === "chats" && (
+              <div className="animate-in fade-in duration-300 space-y-3">
+                {isCreatingFolder ? (
+                  <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-sky-400 flex gap-2 items-center animate-in fade-in slide-in-from-top-2">
+                    <input
+                      ref={newFolderInputRef}
+                      value={newFolderName}
+                      onChange={(e) => setNewFolderName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && confirmCreateFolder()}
+                      placeholder="Nome cartella..."
+                      className="flex-1 bg-transparent text-sm focus:outline-none text-slate-800 dark:text-white placeholder-slate-400"
+                    />
+                    <button
+                      onClick={confirmCreateFolder}
+                      className="p-1 text-green-500 hover:bg-green-500/10 rounded cursor-pointer"
+                    >
+                      <Check size={14} />
+                    </button>
+                    <button
+                      onClick={cancelCreateFolder}
+                      className="p-1 text-red-500 hover:bg-red-500/10 rounded cursor-pointer"
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
+                ) : (
                   <button
-                    onClick={(e) => deleteChat(id, e)}
-                    style={{
-                      background: "#ef4444",
-                      border: "none",
-                      color: "white",
-                      width: "24px",
-                      height: "24px",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                      transition: "all 0.2s ease",
-                    }}
-                    title="Elimina conversazione"
+                    onClick={startCreateFolder}
+                    className="w-full py-2 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 hover:text-sky-500 border border-dashed border-slate-300 dark:border-slate-700 hover:border-sky-400 rounded-lg transition-all cursor-pointer"
                   >
-                    🗑
+                    <FolderPlus size={14} /> Nuova Cartella
+                  </button>
+                )}
+
+                {folders.map((folder) => {
+                  const isExpanded = expandedFolders.has(folder.id)
+                  const isDragTarget = dragOverFolderId === folder.id
+                  const folderChats = Object.entries(chats).filter(([, c]) => c.folderId === folder.id)
+
+                  return (
+                    <div
+                      key={folder.id}
+                      className={`rounded-xl border transition-all duration-300 overflow-hidden mb-1
+                                     ${
+                                       isDragTarget
+                                         ? "border-sky-400 bg-sky-50 dark:bg-sky-900/30 shadow-[0_0_15px_rgba(14,165,233,0.3)] scale-[1.02]"
+                                         : "border-slate-300 dark:border-slate-700 bg-gradient-to-b from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900"
+                                     }`}
+                      onDragOver={(e) => handleDragOver(e, folder.id)}
+                      onDrop={(e) => handleDrop(e, folder.id)}
+                    >
+                      <div
+                        className="flex items-center justify-between p-2 cursor-pointer hover:bg-white/50 dark:hover:bg-white/5"
+                        onClick={() => toggleFolder(folder.id)}
+                      >
+                        <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
+                          {isExpanded ? (
+                            <FolderOpen size={16} className="text-sky-500" />
+                          ) : (
+                            <Folder size={16} className="text-slate-500" />
+                          )}
+                          {folder.name}
+                          <span className="text-[10px] text-slate-500 font-mono bg-white/50 dark:bg-black/20 px-1.5 rounded-full">
+                            {folderChats.length}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => deleteFolder(folder.id, e)}
+                            className="p-1 text-slate-400 hover:text-red-500 rounded cursor-pointer"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                          <ChevronDown
+                            size={14}
+                            className={`text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                          />
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="bg-slate-50/50 dark:bg-black/20 p-1 space-y-1 border-t border-slate-200 dark:border-slate-700">
+                          {folderChats.length === 0 && (
+                            <div className="text-[10px] text-slate-400 text-center py-2 italic">
+                              Trascina qui le chat
+                            </div>
+                          )}
+                          {folderChats
+                            .sort(
+                              ([, a], [, b]) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime(),
+                            )
+                            .map(([id, chat]) => {
+                              const isActive = id === currentChatId
+                              return (
+                                <div
+                                  key={id}
+                                  onClick={() => loadChat(id)}
+                                  draggable
+                                  onDragStart={(e) => handleDragStart(e, id)}
+                                  className={`group flex justify-between items-center p-1.5 rounded-lg cursor-pointer border transition-all duration-200 ml-2
+                                                         ${
+                                                           isActive
+                                                             ? "bg-white dark:bg-slate-800 border-l-2 border-l-sky-500 border-y-transparent border-r-transparent shadow-sm"
+                                                             : "border-transparent hover:bg-white/60 dark:hover:bg-white/5"
+                                                         }`}
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <h4
+                                      className={`text-xs font-medium truncate ${isActive ? "text-sky-600 dark:text-sky-400" : "text-slate-600 dark:text-slate-400"}`}
+                                    >
+                                      {chat.title}
+                                    </h4>
+                                  </div>
+                                  <button
+                                    onClick={(e) => deleteChat(id, e)}
+                                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 cursor-pointer"
+                                  >
+                                    <Trash2 size={10} />
+                                  </button>
+                                </div>
+                              )
+                            })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+
+                <div className="space-y-1 pt-2">
+                  {Object.entries(chats)
+                    .filter(([, c]) => !c.folderId && (showArchived ? c.archived : !c.archived))
+                    .sort(([, a], [, b]) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())
+                    .map(([id, chat]) => {
+                      const isActive = id === currentChatId
+                      const isMenuOpen = activeMenu === id
+
+                      return (
+                        <div
+                          key={id}
+                          onClick={() => loadChat(id)}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, id)}
+                          className={`group relative p-3 rounded-xl cursor-pointer border transition-all duration-300
+                                         ${
+                                           isActive
+                                             ? "bg-gradient-to-r from-sky-50 to-white dark:from-sky-900/30 dark:to-slate-900/30 border-sky-200 dark:border-sky-500/50 shadow-sm border-l-4 border-l-sky-500"
+                                             : "border-transparent hover:bg-white/60 dark:hover:bg-white/5 hover:translate-x-1"
+                                         }`}
+                        >
+                          {renamingChat === id ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                autoFocus
+                                className="w-full bg-transparent border-b border-sky-500 focus:outline-none text-sm"
+                                value={renameValue}
+                                onChange={(e) => setRenameValue(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && confirmRename(id)}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  confirmRename(id)
+                                }}
+                                className="text-green-500 cursor-pointer"
+                              >
+                                <Check size={14} />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex justify-between items-center">
+                              <div className="flex-1 min-w-0">
+                                <h4
+                                  className={`text-sm font-bold truncate transition-colors ${isActive ? "text-sky-600 dark:text-sky-400" : "text-slate-600 dark:text-slate-400 group-hover:text-sky-600 dark:group-hover:text-sky-300"}`}
+                                >
+                                  {pinnedChats.has(id) && "📌 "}
+                                  {chat.archived && "📦 "}
+                                  {chat.title || "Nuova Strategia"}
+                                </h4>
+                                <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                  {new Date(chat.lastUpdated).toLocaleDateString(undefined, {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                  })}{" "}
+                                  •{" "}
+                                  {new Date(chat.lastUpdated).toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </p>
+                              </div>
+
+                              <div className="relative">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setActiveMenu(isMenuOpen ? null : id)
+                                  }}
+                                  className={`p-1.5 rounded-md text-slate-400 hover:text-sky-500 hover:bg-sky-100 dark:hover:bg-white/10 transition-all ${isMenuOpen ? "bg-sky-100 dark:bg-white/10 text-sky-500" : "opacity-0 group-hover:opacity-100"}`}
+                                >
+                                  <MoreHorizontal size={16} />
+                                </button>
+
+                                {isMenuOpen && (
+                                  <div className="absolute right-0 top-8 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        shareChat(id)
+                                      }}
+                                      className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3 text-sm text-slate-700 dark:text-slate-200 border-b border-slate-100 dark:border-slate-700/50 cursor-pointer"
+                                    >
+                                      <Share size={16} /> Condividi
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        startRenaming(id)
+                                      }}
+                                      className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3 text-sm text-slate-700 dark:text-slate-200 cursor-pointer"
+                                    >
+                                      <Edit2 size={16} /> Rinomina
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        archiveChat(id)
+                                      }}
+                                      className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3 text-sm text-slate-700 dark:text-slate-200 cursor-pointer"
+                                    >
+                                      {chat.archived ? <RotateCcw size={16} /> : <Archive size={16} />}{" "}
+                                      {chat.archived ? "Ripristina" : "Archivia"}
+                                    </button>
+                                    <button
+                                      onClick={(e) => deleteChat(id, e)}
+                                      className="w-full text-left px-4 py-3 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-3 text-sm text-red-500 border-t border-slate-100 dark:border-slate-700/50 cursor-pointer"
+                                    >
+                                      <Trash2 size={16} /> Elimina
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                </div>
+
+                <div className="pt-4 border-t border-dashed border-slate-200 dark:border-slate-800 mt-4">
+                  <button
+                    onClick={() => setShowArchived(!showArchived)}
+                    className="w-full flex items-center justify-center gap-2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 py-2 cursor-pointer"
+                  >
+                    <Archive size={12} /> {showArchived ? "Nascondi Archiviati" : "Mostra Archiviati"}
                   </button>
                 </div>
-              )
-            })}
+              </div>
+            )}
+
+            {sidebarMode === "agents" && (
+              <div className="space-y-2 animate-in fade-in duration-300 px-1">
+                {AI_TEAM_LIST.map((agentItem, idx) => {
+                  const agentData = AGENTS_DB[agentItem.id] || {}
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => switchAgent(agentItem.id)}
+                      className={`flex items-center justify-between gap-3 p-2.5 rounded-xl border transition-all duration-300 group cursor-pointer hover:shadow-md dark:hover:shadow-sky-900/20 ${activeAgentId === agentItem.id ? "bg-sky-50 dark:bg-sky-900/30 border-sky-200 dark:border-sky-500/50" : "bg-white/40 dark:bg-white/5 border-transparent hover:bg-white/80 dark:hover:bg-white/10"}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`relative w-10 h-10 rounded-full p-0.5 transition-all duration-300 ${activeAgentId === agentItem.id ? "bg-gradient-to-tr from-sky-500 to-cyan-400" : "bg-slate-200 dark:bg-slate-700"}`}
+                        >
+                          <img
+                            src={agentData.image || "/placeholder.svg"}
+                            className="w-full h-full rounded-full object-cover bg-white"
+                            alt={agentData.name}
+                          />
+                        </div>
+                        <div>
+                          <h4
+                            className={`text-sm font-bold transition-colors ${activeAgentId === agentItem.id ? "text-sky-600 dark:text-sky-400" : "text-slate-700 dark:text-slate-200"}`}
+                          >
+                            {agentData.name}
+                          </h4>
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+                            {agentData.role}
+                          </p>
+                        </div>
+                      </div>
+                      <ExternalLink size={14} className="text-slate-400 group-hover:text-sky-500 transition-colors" />
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
-          {/* Agents Section */}
-          <div
-            style={{
-              flex: "1 1 auto",
-              minHeight: 0,
-              padding: "16px 20px",
-              borderTop: "1px solid #e2e8f0",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <h3
-              style={{
-                fontFamily: "Montserrat, sans-serif",
-                fontSize: "16px",
-                fontWeight: 600,
-                color: "#475569",
-                marginBottom: "16px",
-              }}
-            >
-              AGENTI AI:
-            </h3>
-            <div
-              style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px", minHeight: 0 }}
-            >
-              {[
-                {
-                  name: "Tony AI",
-                  img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Tony-AI-strategiest.png",
-                  href: "/dashboard/tony-ai",
-                },
-                {
-                  name: "Aladino AI",
-                  img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Aladdin-AI-consultant.png",
-                  href: "/dashboard/aladino-ai",
-                },
-                {
-                  name: "Lara AI",
-                  img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Lara-AI-social-strategiest.png",
-                  href: "/dashboard/lara-ai",
-                },
-                {
-                  name: "Simone AI",
-                  img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Simone-AI-seo-copy.png",
-                  href: "/dashboard/simone-ai",
-                },
-                {
-                  name: "Mike AI",
-                  img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Mike-AI-digital-marketing-mg.png",
-                  href: "/dashboard/mike-ai",
-                },
-                {
-                  name: "Alex AI",
-                  img: "https://www.ai-scaleup.com/wp-content/uploads/2025/03/David-AI-Ai-Specialist-social-ads.png",
-                  href: "/dashboard/alex-ai",
-                },
-                {
-                  name: "Valentina AI",
-                  img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Valentina-AI-email-marketing.png",
-                  href: "/dashboard/valentina-ai",
-                },
-                {
-                  name: "Niko AI",
-                  img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Niko-AI-content-creator.png",
-                  href: "/dashboard/niko-ai",
-                },
-                {
-                  name: "Jim AI",
-                  img: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Jim-AI-podcast-expert.png",
-                  href: "/dashboard/jim-ai",
-                },
-                {
-                  name: "Daniele AI",
-                  img: "https://www.ai-scaleup.com/wp-content/uploads/2025/11/daniele_ai_direct_response_copywriter.png",
-                  href: "/dashboard/daniele-ai",
-                },
-              ].map((agent) => (
-                <Link
-                  key={agent.name}
-                  href={agent.href}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    padding: "10px 12px",
-                    borderRadius: "8px",
-                    textDecoration: "none",
-                    color: "#475569",
-                    transition: "background-color 0.2s ease",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "#E3F2FD")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                >
-                  <div
-                    style={{
-                      width: "32px",
-                      height: "32px",
-                      borderRadius: "50%",
-                      overflow: "hidden",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <img
-                      src={agent.img}
-                      alt={agent.name}
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    />
-                  </div>
-                  <span style={{ fontSize: "14px", fontWeight: 500 }}>{agent.name}</span>
-                </Link>
-              ))}
+          <div className="p-4 border-t border-sky-100 dark:border-sky-900/30 bg-white/30 dark:bg-black/20 backdrop-blur-sm">
+            <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-50 dark:bg-white/5 border border-sky-100 dark:border-white/5">
+              <div className="flex items-center gap-2">
+                <Zap size={16} className="text-sky-500" fill="currentColor" />
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                  Memory Core
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  setUseMemory(!useMemory)
+                  localStorage.setItem("daniele-ai-use-memory", String(!useMemory))
+                }}
+                className={`w-10 h-5 rounded-full relative transition-all duration-300 ${useMemory ? "bg-sky-500 shadow-[0_0_10px_rgba(14,165,233,0.4)]" : "bg-slate-300 dark:bg-slate-600"}`}
+              >
+                <div
+                  className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-md transition-all duration-300 ${useMemory ? "left-5" : "left-0.5"}`}
+                ></div>
+              </button>
             </div>
           </div>
         </div>
 
-        {/* Chat Container */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, background: "#ffffff" }}>
-          {/* Chat Header */}
-          <div
-            className="chat-header"
-            style={{
-              background: "#235E84",
-              color: "#ffffff",
-              padding: "20px 40px",
-              borderBottom: "1px solid #e2e8f0",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              minHeight: "80px",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "16px", flex: 1, minWidth: 0 }}>
-              <button
-                className="hamburger-menu"
-                onClick={() => {
-                  setSidebarVisible(true)
-                  localStorage.setItem("daniele-ai-sidebar-visible", "true")
-                }}
-                style={{
-                  background: "rgba(255,255,255,0.1)",
-                  border: "1px solid rgba(255, 255, 255, 0.2)",
-                  padding: "10px",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  color: "#ffffff",
-                  display: "none",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-                title="Mostra menu"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="3" y1="6" x2="21" y2="6" />
-                  <line x1="3" y1="12" x2="21" y2="12" />
-                  <line x1="3" y1="18" x2="21" y2="18" />
-                </svg>
-              </button>
-              <button
-                className="desktop-toggle"
-                onClick={() => {
-                  setSidebarVisible(!sidebarVisible)
-                  localStorage.setItem("daniele-ai-sidebar-visible", String(!sidebarVisible))
-                }}
-                style={{
-                  background: "rgba(255,255,255,0.1)",
-                  border: "1px solid rgba(255, 255, 255, 0.2)",
-                  padding: "10px",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  color: "#ffffff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-                title="Mostra/Nascondi conversazioni"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  {sidebarVisible ? (
-                    <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
-                  ) : (
-                    <path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z" />
-                  )}
-                </svg>
-              </button>
-              <div
-                className="chat-header-title"
-                style={{
-                  fontFamily: "Montserrat, sans-serif",
-                  fontSize: "20px",
-                  fontWeight: 600,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Daniele AI - Copywriter per Vendere (Direct Response)
-              </div>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: "16px", flexShrink: 0 }}>
-              <Link
-                href="/"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: "40px",
-                  height: "40px",
-                  borderRadius: "50%",
-                  background: "rgba(255, 255, 255, 0.1)",
-                  border: "1px solid rgba(255, 255, 255, 0.2)",
-                  color: "#ffffff",
-                  transition: "all 0.2s ease",
-                  cursor: "pointer",
-                }}
-                title="Home"
-              >
-                <Home size={20} />
-              </Link>
-              <div
-                className="avatar-small"
-                style={{ width: "40px", height: "40px", borderRadius: "50%", overflow: "hidden" }}
-              >
-                <UserButton
-                  appearance={{
-                    elements: {
-                      avatarBox: "w-10 h-10",
-                    },
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Messages */}
-          <div
-            className="chat-messages"
-            style={{ flex: 1, overflowY: "auto", padding: "50px 80px", background: "#ffffff" }}
-          >
-            {messages.map((message, index) => (
-              <div
-                key={index}
-                className={`message-container daniele-message ${message.sender}`}
-                style={{
-                  marginBottom: "32px",
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "20px",
-                  animation: "fadeInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-                  maxWidth: "90%",
-                  flexDirection: message.sender === "user" ? "row-reverse" : "row",
-                  marginLeft: message.sender === "user" ? "auto" : "0",
-                }}
-              >
-                <div
-                  style={{
-                    width: "40px",
-                    height: "40px",
-                    borderRadius: "50%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    overflow: "hidden",
-                    background:
-                      message.sender === "ai" ? "linear-gradient(135deg, #235E84 0%, #235E84 100%)" : "#E3F2FD",
-                    color: message.sender === "ai" ? "#ffffff" : "#235E84",
-                    flexShrink: 0,
-                    fontWeight: 600,
-                    fontSize: "14px",
-                  }}
-                >
-                  <img
-                    src={
-                      message.sender === "ai"
-                        ? "https://www.ai-scaleup.com/wp-content/uploads/2025/11/daniele_ai_direct_response_copywriter.png"
-                        : "https://www.shutterstock.com/image-vector/vector-flat-illustration-grayscale-avatar-600nw-2264922221.jpg"
-                    }
-                    alt={message.sender === "ai" ? "Daniele AI" : "Cliente"}
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                  />
-                </div>
-
-                <div
-                  className="message-bubble daniele-message-content"
-                  style={{
-                    flex: 1,
-                    background: message.sender === "user" ? "#235E84" : "#ffffff",
-                    padding: "20px 24px",
-                    borderRadius: "12px",
-                    border: message.sender === "user" ? "1px solid #235E84" : "1px solid #e2e8f0",
-                    minWidth: "200px",
-                  }}
-                >
-                  {message.text === "..." ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                      {[0, 1, 2].map((i) => (
-                        <div
-                          key={i}
-                          style={{
-                            width: "8px",
-                            height: "8px",
-                            background: "#64748b",
-                            borderRadius: "50%",
-                            animation: "typing 1.4s infinite ease-in-out both",
-                            animationDelay: `${i * 0.2}s`,
-                          }}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <>
-                      <div
-                        style={{
-                          color: message.sender === "user" ? "#ffffff" : "#334155",
-                          lineHeight: 1.6,
-                          fontSize: "15px",
-                        }}
-                        dangerouslySetInnerHTML={{ __html: formatMessageText(message.text) }}
-                      />
-                      {message.time && (
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            color: message.sender === "user" ? "rgba(255,255,255,0.7)" : "#64748b",
-                            marginTop: "8px",
-                          }}
-                        >
-                          {message.time}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Input */}
-          <div
-            className="input-container"
-            style={{ padding: "30px 80px", borderTop: "1px solid #e2e8f0", background: "#ffffff" }}
-          >
+        <div
+          className={`flex-1 flex flex-col relative h-full overflow-hidden transition-colors duration-1000 ${isLoading ? "bg-sky-50/50 dark:bg-sky-950/20 neural-grid-active" : "bg-slate-50/50 dark:bg-transparent"}`}
+        >
+          <div className="sticky top-4 z-50 px-4 md:px-8">
             <div
-              style={{
-                display: "flex",
-                alignItems: "flex-end",
-                gap: "12px",
-                background: "#ffffff",
-                border: "2px solid #e2e8f0",
-                borderRadius: "12px",
-                padding: "12px 16px",
-                transition: "all 0.2s ease",
-              }}
+              className={`w-full max-w-6xl mx-auto rounded-2xl p-1 shadow-2xl transition-all duration-500 animate-float overflow-hidden relative ${isDark ? "bg-slate-800/95 border border-sky-500/30 shadow-[0_0_50px_rgba(14,165,233,0.15)]" : "bg-sky-100/90 border border-sky-300 shadow-[0_10px_40px_rgba(14,165,233,0.25)]"} backdrop-blur-xl`}
             >
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                placeholder="Scrivi la tua domanda per Daniele..."
-                disabled={isLoading}
-                style={{
-                  flex: 1,
-                  border: "none",
-                  outline: "none",
-                  background: "transparent",
-                  fontSize: "15px",
-                  color: "#475569",
-                  resize: "none",
-                  minHeight: "24px",
-                  maxHeight: "120px",
-                  fontFamily: "inherit",
-                }}
-                rows={1}
-              />
-              <button
-                onClick={sendMessage}
-                disabled={!input.trim() || isLoading}
-                style={{
-                  background: input.trim() && !isLoading ? "#235E84" : "#cbd5e1",
-                  border: "none",
-                  color: "#ffffff",
-                  width: "40px",
-                  height: "40px",
-                  borderRadius: "50%",
-                  cursor: input.trim() && !isLoading ? "pointer" : "not-allowed",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                  transition: "all 0.2s ease",
-                }}
-                title="Invia (Invio)"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-                </svg>
-              </button>
+              <div className="absolute inset-0 pointer-events-none opacity-40 brainwave-overlay"></div>
+              <div className="relative flex items-center justify-between p-3 md:p-4 rounded-xl z-10">
+                <div className="flex items-center gap-4 md:gap-6">
+                  <button
+                    onClick={() => setSidebarVisible(!sidebarVisible)}
+                    className="p-3 rounded-xl bg-sky-500 text-white shadow-lg shadow-sky-500/40 hover:scale-110 hover:shadow-sky-500/60 transition-all active:scale-95 border-t border-white/20 md:hidden flex items-center justify-center cursor-pointer"
+                  >
+                    <Menu size={24} strokeWidth={3} />
+                  </button>
+                  <button
+                    onClick={() => setSidebarVisible(!sidebarVisible)}
+                    className="p-3 rounded-xl bg-sky-500 text-white shadow-lg shadow-sky-500/40 hover:scale-110 hover:shadow-sky-500/60 transition-all active:scale-95 border-t border-white/20 hidden md:flex items-center justify-center cursor-pointer"
+                  >
+                    <ChevronRight size={24} strokeWidth={3} />
+                  </button>
+
+                  <div className="flex items-center gap-4 md:gap-6">
+                    <div
+                      className={`relative w-16 h-16 md:w-20 md:h-20 shrink-0 rounded-full border-[3px] border-sky-400 shadow-[0_0_25px_rgba(56,189,248,0.6)] overflow-hidden bg-slate-950 ${isLoading ? "animate-pulse shadow-sky-300 ring-2 ring-sky-500/50" : ""}`}
+                    >
+                      <img
+                        src={currentAgent.image || "/placeholder.svg"}
+                        className="w-full h-full object-cover"
+                        alt="Hero"
+                      />
+                      <div className="absolute inset-0 bg-sky-500/10 mix-blend-overlay"></div>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-3 mb-1">
+                        <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-widest leading-none drop-shadow-md">
+                          {currentAgent.name}
+                        </h1>
+                        {isLoading ? (
+                          <span className="flex items-center gap-2 px-2 py-0.5 rounded bg-sky-500/20 border border-sky-500/50 text-sky-400 text-[10px] font-bold tracking-widest uppercase animate-pulse">
+                            <BrainCircuit size={12} /> Thinking...
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded bg-sky-500 text-white text-[10px] font-bold tracking-widest shadow-[0_0_10px_rgba(14,165,233,0.5)] uppercase">
+                            Online
+                          </span>
+                        )}
+                      </div>
+                      <p
+                        className={`text-sm leading-tight max-w-md ${isDark ? "text-slate-300" : "text-slate-700"} font-medium`}
+                      >
+                        {currentAgent.role}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 md:gap-4">
+                  <button
+                    onClick={() => setIsDark(!isDark)}
+                    className="p-2.5 rounded-full bg-slate-200/50 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 transition text-slate-600 dark:text-slate-300 cursor-pointer"
+                  >
+                    {isDark ? <Sun size={20} /> : <Moon size={20} />}
+                  </button>
+                  <div className="h-8 w-px bg-slate-300 dark:bg-white/10 mx-2 hidden sm:block"></div>
+                  <a
+                    href="/dashboard"
+                    className="p-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 transition-all border-t border-white/20 flex items-center justify-center group cursor-pointer"
+                  >
+                    <Home size={22} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+                  </a>
+                  <div className="hidden sm:block">
+                    <MockUserButton />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 custom-scrollbar">
+            <div className="max-w-6xl mx-auto space-y-6">
+              {messages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`flex gap-3 md:gap-4 ${msg.sender === "user" ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                >
+                  {msg.sender === "ai" && (
+  <div className="w-9 h-9 md:w-10 md:h-10 rounded-full shadow-lg shadow-sky-500/30 shrink-0 border-2 border-white dark:border-slate-900 overflow-hidden">
+    <img 
+      src={currentAgent.image || "https://www.ai-scaleup.com/wp-content/uploads/2025/11/daniele_ai_direct_response_copywriter.png"}
+      alt={currentAgent.name}
+      className="w-full h-full object-cover"
+    />
+  </div>
+)}
+                  <div
+                    className={`group relative max-w-[85%] md:max-w-3xl rounded-2xl px-4 md:px-5 py-3 md:py-4 shadow-lg transition-all duration-300 hover:shadow-xl ${msg.sender === "ai" ? "bg-white dark:bg-slate-800/90 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700" : "bg-gradient-to-br from-sky-500 to-sky-600 text-white border border-sky-400"}`}
+                  >
+                    {msg.files && msg.files.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-3 pb-3 border-b border-white/20">
+                        {msg.files.map((fileName, i) => (
+                          <div key={i} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/10 text-xs">
+                            <FileText size={12} /> {fileName}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div
+                      className="markdown-body prose prose-slate dark:prose-invert max-w-none text-sm md:text-base leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: formatMessageText(msg.text) }}
+                    />
+                    <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-200 dark:border-slate-700/50">
+                      <span className="text-[10px] opacity-60 font-mono">{msg.time}</span>
+                      {msg.sender === "ai" && msg.text && msg.text !== "..." && (
+                        <button
+                          onClick={() => handleCopyMessage(msg.text, idx)}
+                          className={`p-1.5 rounded-lg transition-all duration-200 ${copiedMessageIndex === idx ? "bg-green-500/20 text-green-600 dark:text-green-400" : "hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"}`}
+                        >
+                          {copiedMessageIndex === idx ? <Check size={14} /> : <Copy size={14} />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {msg.sender === "user" && (
+  <div className="w-9 h-9 md:w-10 md:h-10 rounded-full shadow-lg shadow-slate-500/30 shrink-0 border-2 border-white dark:border-slate-900 overflow-hidden">
+    <img 
+      src="https://www.shutterstock.com/image-vector/vector-flat-illustration-grayscale-avatar-600nw-2264922221.jpg"
+      alt="User"
+      className="w-full h-full object-cover"
+    />
+  </div>
+)}
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+          </div>
+
+          <div
+            className={`sticky bottom-0 px-4 md:px-8 pb-4 md:pb-6 transition-all duration-500 ${isLoading ? "synapse-active" : ""}`}
+          >
+            <div className="max-w-6xl mx-auto">
+              {selectedFiles.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-3 border border-slate-200 dark:border-slate-700">
+                  {selectedFiles.map((file, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-700 text-sm group"
+                    >
+                      <FileText size={14} className="text-sky-600 dark:text-sky-400" />
+                      <span className="text-slate-700 dark:text-slate-300">{file.name}</span>
+                      <button
+                        onClick={() => removeFile(idx)}
+                        className="text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="glass-panel rounded-2xl shadow-2xl border-2 border-sky-200 dark:border-sky-700/50 overflow-hidden">
+                <div className="flex items-end gap-3 p-3 md:p-4">
+                  <button
+                    onClick={handleAttachment}
+                    className="p-3 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-sky-500 dark:hover:bg-sky-500 hover:text-white text-slate-600 dark:text-slate-300 transition-all duration-300 hover:scale-110 active:scale-95 shrink-0 cursor-pointer"
+                  >
+                    <Paperclip size={20} />
+                  </button>
+                  <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
+                  <textarea
+                    ref={textareaRef}
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault()
+                        sendMessage()
+                      }
+                    }}
+                    placeholder="Scrivi il tuo messaggio..."
+                    rows={1}
+                    className="flex-1 bg-transparent text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm md:text-base resize-none focus:outline-none min-h-[24px] max-h-[200px] py-2"
+                    disabled={isLoading}
+                  />
+                  <button
+                    onClick={sendMessage}
+                    disabled={isLoading || (!inputValue.trim() && selectedFiles.length === 0)}
+                    className={`p-3 md:p-3.5 rounded-xl font-bold uppercase tracking-wider transition-all duration-300 shrink-0 border-2 ${isLoading || (!inputValue.trim() && selectedFiles.length === 0) ? "bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 border-transparent cursor-not-allowed" : "bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 text-white shadow-lg shadow-sky-500/40 hover:shadow-sky-500/60 hover:scale-105 active:scale-95 border-sky-400 cursor-pointer"}`}
+                  >
+                    <Send size={20} strokeWidth={2.5} />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1222,8 +1600,5 @@ export default function DanieleAIPage() {
     </>
   )
 }
-
-
-
 
 

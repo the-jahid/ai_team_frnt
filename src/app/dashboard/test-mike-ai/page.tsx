@@ -1,5 +1,8 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+export const runtime = "edge"
+
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import {
@@ -898,7 +901,7 @@ export default function App() {
         },
       }
 
-      localStorage.setItem("mike-ai-chats", JSON.JSON.stringify(newChatState))
+      localStorage.setItem("mike-ai-chats", JSON.stringify(newChatState))
       setChats(newChatState)
       setCurrentChatId(newChatId)
       setMessages([welcomeMsg])
@@ -1839,6 +1842,8 @@ export default function App() {
                         src={
                           currentAgent.image ||
                           "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Mike-AI-digital-marketing-mg.png" ||
+                          "/placeholder.svg" ||
+                          "/placeholder.svg" ||
                           "/placeholder.svg" ||
                           "/placeholder.svg" ||
                           "/placeholder.svg"

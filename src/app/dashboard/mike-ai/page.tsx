@@ -1,5 +1,8 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+export const runtime = "edge"
+
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import {
@@ -16,7 +19,6 @@ import {
   Paperclip,
   ChevronRight,
   Users,
-  LayoutGrid,
   ChevronLeft,
   BrainCircuit,
   FolderPlus,
@@ -33,6 +35,13 @@ import {
   Menu,
   Home,
 } from "lucide-react"
+import * as pdfjsLib from "pdfjs-dist"
+import mammoth from "mammoth"
+import * as XLSX from "xlsx"
+
+if (typeof window !== "undefined") {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+}
 
 // --- TYPES ---
 interface Message {
@@ -59,9 +68,304 @@ interface FolderType {
   createdAt: string
 }
 
+interface PineconeVector {
+  id: string
+  values: number[]
+  metadata: {
+    text: string
+    sender: string
+    timestamp: string
+    chatId: string
+    agentId: string
+    namespace: string
+    fileName?: string
+    fileType?: string
+    chunkIndex?: number
+    totalChunks?: number
+  }
+}
+
 // --- CONSTANTS ---
 const USER_AVATAR =
   "https://www.shutterstock.com/image-vector/vector-flat-illustration-grayscale-avatar-600nw-2264922221.jpg"
+
+// --- FILE EXTRACTION FUNCTIONS ---
+async function extractFileContent(file: File): Promise<string> {
+  const fileType = file.type
+  const fileName = file.name.toLowerCase()
+
+  try {
+    if (fileType === "application/pdf" || fileName.endsWith(".pdf")) {
+      const arrayBuffer = await file.arrayBuffer()
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+      let text = ""
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i)
+        const content = await page.getTextContent()
+        const pageText = content.items.map((item: any) => item.str).join(" ")
+        text += pageText + "\n"
+      }
+      return text.trim()
+    }
+
+    if (
+      fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      fileName.endsWith(".docx")
+    ) {
+      const arrayBuffer = await file.arrayBuffer()
+      const result = await mammoth.extractRawText({ arrayBuffer })
+      return result.value.trim()
+    }
+
+    if (
+      fileType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+      fileType === "application/vnd.ms-excel" ||
+      fileName.endsWith(".xlsx") ||
+      fileName.endsWith(".xls")
+    ) {
+      const arrayBuffer = await file.arrayBuffer()
+      const workbook = XLSX.read(arrayBuffer, { type: "array" })
+      let text = ""
+      workbook.SheetNames.forEach((sheetName) => {
+        const sheet = workbook.Sheets[sheetName]
+        const csv = XLSX.utils.sheet_to_csv(sheet)
+        text += `Sheet: ${sheetName}\n${csv}\n\n`
+      })
+      return text.trim()
+    }
+
+    if (fileType === "text/csv" || fileName.endsWith(".csv")) {
+      return await file.text()
+    }
+
+    if (fileType === "application/json" || fileName.endsWith(".json")) {
+      const text = await file.text()
+      try {
+        const json = JSON.parse(text)
+        return JSON.stringify(json, null, 2)
+      } catch {
+        return text
+      }
+    }
+
+    if (fileType === "text/html" || fileName.endsWith(".html") || fileName.endsWith(".htm")) {
+      const text = await file.text()
+      const div = document.createElement("div")
+      div.innerHTML = text
+      return div.textContent || div.innerText || text
+    }
+
+    if (fileType === "text/markdown" || fileName.endsWith(".md")) {
+      return await file.text()
+    }
+
+    if (
+      fileType.startsWith("text/") ||
+      fileName.endsWith(".txt") ||
+      fileName.endsWith(".js") ||
+      fileName.endsWith(".ts") ||
+      fileName.endsWith(".jsx") ||
+      fileName.endsWith(".tsx") ||
+      fileName.endsWith(".py") ||
+      fileName.endsWith(".java") ||
+      fileName.endsWith(".c") ||
+      fileName.endsWith(".cpp") ||
+      fileName.endsWith(".css") ||
+      fileName.endsWith(".scss") ||
+      fileName.endsWith(".sql") ||
+      fileName.endsWith(".xml") ||
+      fileName.endsWith(".yaml") ||
+      fileName.endsWith(".yml")
+    ) {
+      return await file.text()
+    }
+
+    if (fileType.startsWith("image/")) {
+      return `[Image file: ${file.name}, Type: ${fileType}, Size: ${(file.size / 1024).toFixed(2)} KB]`
+    }
+
+    if (fileType.startsWith("audio/")) {
+      return `[Audio file: ${file.name}, Type: ${fileType}, Size: ${(file.size / 1024).toFixed(2)} KB]`
+    }
+
+    if (fileType.startsWith("video/")) {
+      return `[Video file: ${file.name}, Type: ${fileType}, Size: ${(file.size / 1024).toFixed(2)} KB]`
+    }
+
+    try {
+      return await file.text()
+    } catch {
+      return `[Binary file: ${file.name}, Type: ${fileType}, Size: ${(file.size / 1024).toFixed(2)} KB]`
+    }
+  } catch (error) {
+    console.error(`Error extracting content from ${file.name}:`, error)
+    return `[Error extracting content from ${file.name}: ${error instanceof Error ? error.message : String(error)}]`
+  }
+}
+
+// --- PINECONE HELPER FUNCTIONS ---
+async function getEmbedding(text: string): Promise<number[]> {
+  const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY
+  const model = process.env.NEXT_PUBLIC_OPENAI_MODEL || "text-embedding-ada-002"
+
+  if (!apiKey) {
+    throw new Error("OpenAI API key not configured")
+  }
+
+  const response = await fetch("https://api.openai.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      input: text,
+      model: model,
+    }),
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Failed to get embedding: ${response.status}`)
+  }
+
+  const data = await response.json()
+  return data.data[0].embedding
+}
+
+async function upsertToPinecone(vectors: PineconeVector[], namespace: string): Promise<boolean> {
+  const pineconeHost = process.env.NEXT_PUBLIC_PINECONE_HOST
+  const pineconeApiKey = process.env.NEXT_PUBLIC_PINECONE_API_KEY
+
+  if (!pineconeHost || !pineconeApiKey) {
+    throw new Error("Pinecone not configured")
+  }
+
+  const url = `${pineconeHost}/vectors/upsert`
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Api-Key": pineconeApiKey,
+    },
+    body: JSON.stringify({
+      vectors: vectors,
+      namespace: namespace,
+    }),
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Failed to upsert to Pinecone: ${response.status}`)
+  }
+
+  return true
+}
+
+async function upsertFileToPinecone(
+  fileName: string,
+  content: string,
+  namespace: string,
+  chatId?: string,
+  agentId?: string,
+): Promise<void> {
+  const timestamp = Date.now()
+  const cleanFileName = fileName.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase()
+
+  const maxChunkSize = 8000
+  const chunks: string[] = []
+
+  if (content.length <= maxChunkSize) {
+    chunks.push(content)
+  } else {
+    const paragraphs = content.split(/\n\n+/)
+    let currentChunk = ""
+
+    for (const para of paragraphs) {
+      if (currentChunk.length + para.length > maxChunkSize) {
+        if (currentChunk) chunks.push(currentChunk.trim())
+        currentChunk = para
+      } else {
+        currentChunk += (currentChunk ? "\n\n" : "") + para
+      }
+    }
+    if (currentChunk) chunks.push(currentChunk.trim())
+  }
+
+  const vectors: PineconeVector[] = []
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i]
+    const embedding = await getEmbedding(chunk)
+
+    const vectorId =
+      chunks.length === 1 ? `file_${cleanFileName}_${timestamp}` : `file_${cleanFileName}_${timestamp}_part${i + 1}`
+
+    vectors.push({
+      id: vectorId,
+      values: embedding,
+      metadata: {
+        text: chunk,
+        sender: "file",
+        timestamp: new Date().toISOString(),
+        chatId: chatId || "",
+        agentId: agentId || "",
+        namespace: namespace,
+        fileName: fileName,
+        fileType: fileName.split(".").pop() || "unknown",
+        chunkIndex: i,
+        totalChunks: chunks.length,
+      },
+    })
+  }
+
+  await upsertToPinecone(vectors, namespace)
+}
+
+async function upsertConversation(
+  userMessage: Message,
+  aiMessage: Message,
+  chatId: string,
+  agentId: string,
+  namespace: string,
+): Promise<void> {
+  const timestamp = Date.now()
+
+  const userEmbedding = await getEmbedding(userMessage.text)
+  const userVectorId = `${chatId}_user_${timestamp}`
+
+  const userVector: PineconeVector = {
+    id: userVectorId,
+    values: userEmbedding,
+    metadata: {
+      text: userMessage.text,
+      sender: "user",
+      timestamp: new Date().toISOString(),
+      chatId: chatId,
+      agentId: agentId,
+      namespace: namespace,
+    },
+  }
+
+  const aiEmbedding = await getEmbedding(aiMessage.text)
+  const aiVectorId = `${chatId}_ai_${timestamp}`
+
+  const aiVector: PineconeVector = {
+    id: aiVectorId,
+    values: aiEmbedding,
+    metadata: {
+      text: aiMessage.text,
+      sender: "ai",
+      timestamp: new Date().toISOString(),
+      chatId: chatId,
+      agentId: agentId,
+      namespace: namespace,
+    },
+  }
+
+  await upsertToPinecone([userVector, aiVector], namespace)
+}
 
 // --- ROBUST MARKDOWN SHIM v4 ---
 const simpleMarkdown = {
@@ -106,28 +410,27 @@ const simpleMarkdown = {
         '<div class="overflow-x-auto my-3 rounded border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5"><table class="w-full text-left border-collapse text-xs">'
 
       const headerCols = tableBuffer[0].split("|")
-const headerCells = headerCols.map((c) => c.trim()).filter(Boolean)
+      const headerCells = headerCols.map((c) => c.trim()).filter(Boolean)
 
-html += '<thead class="bg-slate-100 dark:bg-white/10"><tr>'
-headerCells.forEach((cell) => {
-  html += `<th class="p-2 border-b border-slate-200 dark:border-white/10 font-bold text-slate-800 dark:text-white">${formatInline(cell)}</th>`
-})
-html += "</tr></thead><tbody>"
+      html += '<thead class="bg-slate-100 dark:bg-white/10"><tr>'
+      headerCells.forEach((cell) => {
+        html += `<th class="p-2 border-b border-slate-200 dark:border-white/10 font-bold text-slate-800 dark:text-white">${formatInline(cell)}</th>`
+      })
+      html += "</tr></thead><tbody>"
 
-for (let i = 2; i < tableBuffer.length; i++) {
-  const rowCols = tableBuffer[i].split("|")
-  const rowCells = rowCols.map((c) => c.trim()).filter(Boolean)
-  
-  // Only add row if it has actual content
-  if (rowCells.length > 0 && rowCells.some(cell => cell.length > 0)) {
-    html +=
-      '<tr class="border-b border-slate-200 dark:border-white/5 last:border-0 hover:bg-slate-100/50 dark:hover:bg-white/5">'
-    rowCells.forEach((cell) => {
-      html += `<td class="p-2 opacity-90">${formatInline(cell)}</td>`
-    })
-    html += "</tr>"
-  }
-}
+      for (let i = 2; i < tableBuffer.length; i++) {
+        const rowCols = tableBuffer[i].split("|")
+        const rowCells = rowCols.map((c) => c.trim()).filter(Boolean)
+
+        if (rowCells.length > 0 && rowCells.some((cell) => cell.length > 0)) {
+          html +=
+            '<tr class="border-b border-slate-200 dark:border-white/5 last:border-0 hover:bg-slate-100/50 dark:hover:bg-white/5">'
+          rowCells.forEach((cell) => {
+            html += `<td class="p-2 opacity-90">${formatInline(cell)}</td>`
+          })
+          html += "</tr>"
+        }
+      }
       html += "</tbody></table></div>"
 
       output += html
@@ -182,7 +485,7 @@ for (let i = 2; i < tableBuffer.length; i++) {
 
 // --- AGENT DATABASE ---
 const AGENTS_DB: Record<string, any> = {
-"tony-ai": {
+  "tony-ai": {
     name: "Tony AI",
     role: "Sales Advisor",
     image: "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Tony-AI-strategiest.png",
@@ -263,11 +566,12 @@ const AGENTS_DB: Record<string, any> = {
     accentColor: "#fb923c",
     route: "/dashboard/jim-ai",
   },
-"daniele-ai": {
+  "daniele-ai": {
     name: "Daniele AI",
     role: "Response Copywriter",
     image: "https://www.ai-scaleup.com/wp-content/uploads/2025/11/daniele_ai_direct_response_copywriter.png",
-    description: "Progetto e scrivo copy di direct response per trasformare traffico qualificato in lead e clienti paganti.",
+    description:
+      "Progetto e scrivo copy di direct response per trasformare traffico qualificato in lead e clienti paganti.",
     primaryColor: "#f97316",
     accentColor: "#fb923c",
     route: "/dashboard/daniele-ai",
@@ -285,7 +589,7 @@ const AI_TEAM_LIST = [
   { id: "alex-ai" },
   { id: "aladino-ai" },
   { id: "jim-ai" },
-{ id: "daniele-ai" },
+  { id: "daniele-ai" },
 ]
 
 // --- MOCK USER BUTTON ---
@@ -303,7 +607,6 @@ export default function App() {
   const currentAgent = AGENTS_DB[activeAgentId] || AGENTS_DB["mike-ai"]
 
   const [messages, setMessages] = useState<Message[]>([])
-
   const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [sidebarVisible, setSidebarVisible] = useState(true)
@@ -328,6 +631,9 @@ export default function App() {
   const [showArchived, setShowArchived] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
 
+  // Pending file contents for upsert on send
+  const [pendingFileContents, setPendingFileContents] = useState<{ fileName: string; content: string }[]>([])
+
   // --- REFS ---
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -340,10 +646,14 @@ export default function App() {
 
   // --- INITIALIZATION ---
   useEffect(() => {
+    // All browser API code now safely runs only on client side
+    if (typeof window === "undefined") return
+
     const savedTheme = localStorage.getItem("theme")
     if (savedTheme) setIsDark(savedTheme === "dark")
     else setIsDark(true)
 
+    // Make sidebar not visible by default on mobile
     if (window.innerWidth < 768) {
       setSidebarVisible(false)
     }
@@ -381,7 +691,6 @@ export default function App() {
           initNewChatForAgent(currentAgent)
         }
       } catch (e) {
-        console.error("Failed to parse saved chats", e)
         initNewChatForAgent(currentAgent)
       }
     } else {
@@ -392,13 +701,13 @@ export default function App() {
     if (savedFolders) {
       try {
         setFolders(JSON.parse(savedFolders))
-      } catch (e) {
-        console.error("Failed to parse folders", e)
-      }
+      } catch (e) {}
     }
   }, [])
 
   useEffect(() => {
+    if (typeof window === "undefined") return
+
     if (isDark) {
       document.documentElement.classList.add("dark")
       localStorage.setItem("theme", "dark")
@@ -462,7 +771,6 @@ export default function App() {
         agentId: targetAgentId,
       }
       const newChats = { [newChatId]: newChat, ...prev }
-      // </CHANGE> Fixed JSON.JSON.stringify to JSON.stringify on line 474
       localStorage.setItem("mike-ai-chats", JSON.stringify(newChats))
       return newChats
     })
@@ -471,10 +779,9 @@ export default function App() {
   const updateChatState = (chatId: string, updates: Partial<ChatSession>) => {
     setChats((prev) => {
       const existing = prev[chatId]
-      if (!existing) return prev // Should not happen if chatId is valid
+      if (!existing) return prev
       const updatedChat = { ...existing, ...updates }
       const newChats = { ...prev, [chatId]: updatedChat }
-      // </CHANGE> Fixed JSON.JSON.stringify to JSON.stringify on line 474
       localStorage.setItem("mike-ai-chats", JSON.stringify(newChats))
       return newChats
     })
@@ -694,7 +1001,6 @@ export default function App() {
 
     let currentMessages = [...messages, userMessage]
 
-    // Handle creating a new chat if none is active
     let currentChatIdForSend = currentChatId
     if (!currentChatIdForSend) {
       const newChatId = "chat_" + Date.now()
@@ -722,7 +1028,6 @@ export default function App() {
       setMessages(currentMessages)
       localStorage.setItem("mike-ai-chats", JSON.stringify(updatedChatsState))
     } else {
-      // Add user message to existing chat
       const updatedChatSession = {
         ...chats[currentChatIdForSend],
         messages: currentMessages,
@@ -735,13 +1040,30 @@ export default function App() {
       localStorage.setItem("mike-ai-chats", JSON.stringify(updatedChatsState))
     }
 
-    // Add a placeholder for the AI's response
+    // Upsert pending file contents to Pinecone on send
+    if (pendingFileContents.length > 0 && CURRENT_NAMESPACE.current) {
+      for (const fileData of pendingFileContents) {
+        try {
+          await upsertFileToPinecone(
+            fileData.fileName,
+            fileData.content,
+            CURRENT_NAMESPACE.current,
+            currentChatIdForSend || undefined,
+            activeAgentId,
+          )
+        } catch (error) {
+          console.error("Failed to upsert file to Pinecone:", error)
+        }
+      }
+      setPendingFileContents([])
+    }
+
     const aiResponsePlaceholder: Message = { text: "...", sender: "ai", time: "", raw: "" }
     setMessages((prev) => [...prev, aiResponsePlaceholder])
 
     try {
       const sessionId = localStorage.getItem("mike-ai-session-id") || "session_" + Date.now()
-      if (!currentChatIdForSend) throw new Error("currentChatIdForSend is null") // Should not happen
+      if (!currentChatIdForSend) throw new Error("currentChatIdForSend is null")
 
       const response = await fetch(N8N_ENDPOINT, {
         method: "POST",
@@ -793,13 +1115,10 @@ export default function App() {
             } else if (obj.type === "done") {
               break
             }
-          } catch (e) {
-            console.error("Failed to parse JSON chunk:", e, "Line:", trimmed)
-          }
+          } catch (e) {}
         }
       }
 
-      // Finalize AI message
       const finalAiMessage: Message = {
         text: rawText.trim() || "La risposta è stata completata.",
         sender: "ai",
@@ -810,7 +1129,6 @@ export default function App() {
       setMessages((prev) => {
         const newMsgs = [...prev]
         newMsgs[newMsgs.length - 1] = finalAiMessage
-        // Update the chat in state and localStorage
         const updatedChatSession = {
           ...chats[currentChatIdForSend!],
           messages: newMsgs,
@@ -821,8 +1139,22 @@ export default function App() {
         setChats(updatedChatsState)
         return newMsgs
       })
+
+      // Upsert conversation to Pinecone
+      if (CURRENT_NAMESPACE.current && currentChatIdForSend) {
+        try {
+          await upsertConversation(
+            userMessage,
+            finalAiMessage,
+            currentChatIdForSend,
+            activeAgentId,
+            CURRENT_NAMESPACE.current,
+          )
+        } catch (error) {
+          console.error("Failed to upsert conversation:", error)
+        }
+      }
     } catch (error) {
-      console.error("Error sending message:", error)
       setMessages((prev) => {
         const newMsgs = [...prev]
         newMsgs[newMsgs.length - 1].text =
@@ -837,119 +1169,123 @@ export default function App() {
   }
 
   const handleAttachment = () => fileInputRef.current?.click()
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.length) setSelectedFiles((prev) => [...prev, ...Array.from(e.target.files!)])
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.length) {
+      const newFiles = Array.from(e.target.files)
+      setSelectedFiles((prev) => [...prev, ...newFiles])
+
+      // Extract content from files and store for later upsert
+      for (const file of newFiles) {
+        try {
+          const content = await extractFileContent(file)
+          if (content && content.trim()) {
+            setPendingFileContents((prev) => [...prev, { fileName: file.name, content }])
+          }
+        } catch (error) {
+          console.error("Failed to extract file content:", error)
+        }
+      }
+    }
   }
 
   const removeFile = (index: number) => {
+    const fileToRemove = selectedFiles[index]
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index))
+    setPendingFileContents((prev) => prev.filter((f) => f.fileName !== fileToRemove.name))
   }
 
   const handleCopyMessage = async (text: string, index: number) => {
-  console.log("🔧 TABLE COPY FIX v3.0 - ACTIVE")
-  
-  try {
-    let htmlContent = formatMessageText(text)
-    console.log("📋 Original HTML:", htmlContent.substring(0, 300))
+    try {
+      let htmlContent = formatMessageText(text)
 
-    // STEP 1: Remove wrapper divs from tables
-    htmlContent = htmlContent.replace(
-      /<div[^>]*class="[^"]*overflow-x-auto[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/div>/g,
-      '$1'
-    )
+      htmlContent = htmlContent.replace(
+        /<div[^>]*class="[^"]*overflow-x-auto[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/div>/g,
+        "$1",
+      )
 
-    // STEP 2: Use DOM parser to clean empty rows
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(htmlContent, 'text/html')
-    
-    // Find all table rows and remove empty ones
-    const allRows = doc.querySelectorAll('tr')
-    allRows.forEach(row => {
-      const cells = row.querySelectorAll('td, th')
-      let hasContent = false
-      
-      // Check if any cell has actual text content
-      cells.forEach(cell => {
-        const content = cell.textContent?.trim() || ''
-        if (content.length > 0) {
-          hasContent = true
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(htmlContent, "text/html")
+
+      const allRows = doc.querySelectorAll("tr")
+      allRows.forEach((row) => {
+        const cells = row.querySelectorAll("td, th")
+        let hasContent = false
+
+        cells.forEach((cell) => {
+          const content = cell.textContent?.trim() || ""
+          if (content.length > 0) {
+            hasContent = true
+          }
+        })
+
+        if (!hasContent && cells.length > 0) {
+          row.remove()
         }
       })
-      
-      // Remove row if it has cells but no content
-      if (!hasContent && cells.length > 0) {
-        console.log("🗑️ Removing empty row with", cells.length, "empty cells")
-        row.remove()
-      }
-    })
-    
-    // Get the cleaned HTML
-    htmlContent = doc.body.innerHTML
-    console.log("✅ After cleaning:", htmlContent.substring(0, 300))
 
-    // STEP 3: Apply inline styles
-    htmlContent = htmlContent
-      .replace(/<strong[^>]*>/g, '<strong style="font-weight: 700; color: #0f172a;">')
-      .replace(/<em[^>]*>/g, '<em style="font-style: italic; color: #334155;">')
-      .replace(
-        /<code[^>]*>/g,
-        '<code style="background-color: #f1f5f9; padding: 2px 4px; border-radius: 4px; font-family: monospace; font-size: 0.9em; border: 1px solid #e2e8f0;">',
-      )
-      .replace(
-        /<ul[^>]*>/g,
-        '<ul style="margin-left: 20px; list-style-type: disc; padding-left: 20px; margin-bottom: 10px;">',
-      )
-      .replace(/<li[^>]*>/g, '<li style="margin-bottom: 4px;">')
-      .replace(
-        /<h3[^>]*>/g,
-        '<h3 style="font-size: 18px; font-weight: bold; margin-top: 15px; margin-bottom: 5px; color: #0f172a;">',
-      )
-      .replace(
-        /<h2[^>]*>/g,
-        '<h2 style="font-size: 22px; font-weight: bold; border-bottom: 2px solid #e2e8f0; margin-top: 20px; margin-bottom: 10px; color: #0f172a;">',
-      )
-      .replace(
-        /<table[^>]*>/g,
-        '<table style="border-collapse: collapse; width: 100%; border: 1px solid #cbd5e1; font-family: sans-serif; font-size: 14px; margin: 10px 0;">',
-      )
-      .replace(/<thead[^>]*>/g, '<thead style="background-color: #f1f5f9;">')
-      .replace(
-        /<th[^>]*>/g,
-        '<th style="border: 1px solid #94a3b8; padding: 10px; text-align: left; font-weight: bold; background-color: #f1f5f9; color: #0f172a;">',
-      )
-      .replace(/<td[^>]*>/g, '<td style="border: 1px solid #cbd5e1; padding: 8px; color: #334155;">')
-      .replace(/<tr[^>]*>/g, '<tr>')
+      htmlContent = doc.body.innerHTML
 
-    const finalHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head><meta charset="utf-8"></head>
-      <body style="font-family: sans-serif; color: #0f172a; line-height: 1.6;">
-        ${htmlContent}
-      </body>
-      </html>
-    `
+      htmlContent = htmlContent
+        .replace(/<strong[^>]*>/g, '<strong style="font-weight: 700; color: #0f172a;">')
+        .replace(/<em[^>]*>/g, '<em style="font-style: italic; color: #334155;">')
+        .replace(
+          /<code[^>]*>/g,
+          '<code style="background-color: #f1f5f9; padding: 2px 4px; border-radius: 4px; font-family: monospace; font-size: 0.9em; border: 1px solid #e2e8f0;">',
+        )
+        .replace(
+          /<ul[^>]*>/g,
+          '<ul style="margin-left: 20px; list-style-type: disc; padding-left: 20px; margin-bottom: 10px;">',
+        )
+        .replace(/<li[^>]*>/g, '<li style="margin-bottom: 4px;">')
+        .replace(
+          /<h3[^>]*>/g,
+          '<h3 style="font-size: 18px; font-weight: bold; margin-top: 15px; margin-bottom: 5px; color: #0f172a;">',
+        )
+        .replace(
+          /<h2[^>]*>/g,
+          '<h2 style="font-size: 22px; font-weight: bold; border-bottom: 2px solid #e2e8f0; margin-top: 20px; margin-bottom: 10px; color: #0f172a;">',
+        )
+        .replace(
+          /<table[^>]*>/g,
+          '<table style="border-collapse: collapse; width: 100%; border: 1px solid #cbd5e1; font-family: sans-serif; font-size: 14px; margin: 10px 0;">',
+        )
+        .replace(/<thead[^>]*>/g, '<thead style="background-color: #f1f5f9;">')
+        .replace(
+          /<th[^>]*>/g,
+          '<th style="border: 1px solid #94a3b8; padding: 10px; text-align: left; font-weight: bold; background-color: #f1f5f9; color: #0f172a;">',
+        )
+        .replace(/<td[^>]*>/g, '<td style="border: 1px solid #cbd5e1; padding: 8px; color: #334155;">')
+        .replace(/<tr[^>]*>/g, "<tr>")
 
-    const blobHtml = new Blob([finalHtml], { type: "text/html" })
-    const blobText = new Blob([text], { type: "text/plain" })
+      const finalHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: sans-serif; color: #0f172a; line-height: 1.6;">
+          ${htmlContent}
+        </body>
+        </html>
+      `
 
-    await navigator.clipboard.write([
-      new ClipboardItem({
-        "text/html": blobHtml,
-        "text/plain": blobText,
-      }),
-    ])
+      const blobHtml = new Blob([finalHtml], { type: "text/html" })
+      const blobText = new Blob([text], { type: "text/plain" })
 
-    console.log("✅ Copy completed successfully!")
-    setCopiedMessageIndex(index)
-    setTimeout(() => setCopiedMessageIndex(null), 2000)
-  } catch (err) {
-    console.error("❌ Rich copy failed:", err)
-    navigator.clipboard.writeText(text)
-    setCopiedMessageIndex(index)
-    setTimeout(() => setCopiedMessageIndex(null), 2000)
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/html": blobHtml,
+          "text/plain": blobText,
+        }),
+      ])
+
+      setCopiedMessageIndex(index)
+      setTimeout(() => setCopiedMessageIndex(null), 2000)
+    } catch (err) {
+      navigator.clipboard.writeText(text)
+      setCopiedMessageIndex(index)
+      setTimeout(() => setCopiedMessageIndex(null), 2000)
+    }
   }
-}
 
   return (
     <>
@@ -974,7 +1310,7 @@ export default function App() {
         .animate-float { animation: brain-float 6s ease-in-out infinite; }
         
         @keyframes brain-wave-flow { 0% { background-position: 0% 50%; opacity: 0.2; } 50% { background-position: 100% 50%; opacity: 0.5; } 100% { background-position: 0% 50%; opacity: 0.2; } }
-        .brainwave-overlay { background: linear-gradient(90deg, transparent, rgba(14,165,233,0.3), transparent, rgba(34,211,238,0.3), transparent); background-size: 200% 100%; animation: brain-wave-flow 3s linear infinite; pointer-events: none; }
+        .brainwave-overlay { background: linear-gradient(90deg, transparent, rgba(14,165,233,0.3), transparent); background-size: 200% 100%; animation: brain-wave-flow 3s linear infinite; pointer-events: none; }
 
         @keyframes synapse-pulse { 0% { box-shadow: 0 -10px 40px rgba(14,165,233,0.1); border-top-color: rgba(14,165,233,0.3); } 50% { box-shadow: 0 -20px 60px rgba(14,165,233,0.4); border-top-color: rgba(14,165,233,0.8); } 100% { box-shadow: 0 -10px 40px rgba(14,165,233,0.1); border-top-color: rgba(14,165,233,0.3); } }
         .synapse-active { animation: synapse-pulse 1.5s ease-in-out infinite; position: relative; }
@@ -1020,25 +1356,32 @@ export default function App() {
       `}</style>
 
       <div className={`flex h-screen w-full bg-tech-grid azure-glow-bg ${isDark ? "dark" : ""}`}>
+        {/* Mobile sidebar overlay */}
+        {sidebarVisible && (
+          <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setSidebarVisible(false)} />
+        )}
+
         <div
           className={`glass-panel flex flex-col transition-all duration-500 ease-[cubic-bezier(0,0,0.2,1)] z-40 
-                        ${sidebarVisible ? "w-80 translate-x-0" : "w-0 -translate-x-full opacity-0"} 
+                        ${sidebarVisible ? "w-72 sm:w-80 translate-x-0" : "w-0 -translate-x-full opacity-0"} 
                         fixed md:relative h-full border-r border-sky-100 dark:border-sky-900/30`}
         >
-          <div className="p-6 border-b border-sky-100 dark:border-sky-900/30 bg-gradient-to-b from-white/50 to-transparent dark:from-sky-900/20">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
+          <div className="p-4 sm:p-6 border-b border-sky-100 dark:border-sky-900/30 bg-gradient-to-b from-white/50 to-transparent dark:from-sky-900/20">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <div className="flex items-center gap-2 sm:gap-3">
                 <div className="relative group cursor-pointer">
-                  <div className="w-12 h-12 rounded-full p-0.5 bg-gradient-to-tr from-sky-400 to-cyan-300 shadow-lg shadow-sky-400/20 group-hover:shadow-sky-400/50 transition-all duration-300">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full p-0.5 bg-gradient-to-tr from-sky-400 to-cyan-300 shadow-lg shadow-sky-400/20 group-hover:shadow-sky-400/50 transition-all duration-300">
                     <img
                       src={currentAgent.image || "/placeholder.svg"}
                       className="w-full h-full rounded-full object-cover bg-slate-900"
                       alt={currentAgent.name}
                     />
                   </div>
-                  <div className="absolute bottom-0.5 right-0 w-3 h-3 bg-emerald-400 border-2 border-white dark:border-slate-900 rounded-full animate-pulse"></div>
+                  <div className="absolute bottom-0.5 right-0 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-emerald-400 border-2 border-white dark:border-slate-900 rounded-full animate-pulse"></div>
                 </div>
-                <h2 className="text-xl font-bold text-slate-800 dark:text-white tracking-wide font-tech">AI TEAM</h2>
+                <h2 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white tracking-wide font-tech">
+                  AI TEAM
+                </h2>
               </div>
               <button
                 onClick={() => setSidebarVisible(false)}
@@ -1050,53 +1393,49 @@ export default function App() {
 
             <button
               onClick={createNewChat}
-              className="w-full py-3.5 px-4 btn-electric text-white font-bold rounded-xl flex items-center justify-center gap-2 uppercase tracking-wider text-sm border border-white/10 cursor-pointer"
+              className="w-full py-3 sm:py-3.5 px-4 btn-electric text-white font-bold rounded-xl flex items-center justify-center gap-2 uppercase tracking-wider text-xs sm:text-sm border border-white/10 cursor-pointer"
             >
-              <MessageSquare size={18} strokeWidth={2.5} /> Nuova Missione
+              <MessageSquare size={16} strokeWidth={2.5} /> Nuova Missione
             </button>
           </div>
 
-          <div className="flex p-2 gap-1 mx-4 mt-4 bg-slate-100/80 dark:bg-slate-900/50 rounded-xl border border-sky-200/50 dark:border-sky-700/30 shadow-inner">
+          <div className="flex p-1.5 sm:p-2 gap-1 mx-3 sm:mx-4 mt-3 sm:mt-4 bg-slate-100/80 dark:bg-slate-900/50 rounded-xl border border-sky-200/50 dark:border-sky-700/30 shadow-inner">
             <button
               onClick={() => setSidebarMode("chats")}
-              className={`flex-1 py-2 text-xs font-bold uppercase tracking-wide rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer
+              className={`flex-1 py-2 text-xs font-bold uppercase tracking-wide rounded-lg transition-all flex items-center justify-center gap-1 sm:gap-2 cursor-pointer
                     ${
                       sidebarMode === "chats"
                         ? "bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm border border-sky-100 dark:border-sky-600/30"
-                        : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                        : "text-slate-500 hover:text-sky-600 dark:text-slate-400 dark:hover:text-sky-400"
                     }`}
             >
-              <LayoutGrid size={14} /> Missioni
+              <MessageSquare size={12} className="sm:w-4 sm:h-4" /> Chats
             </button>
             <button
               onClick={() => setSidebarMode("agents")}
-              className={`flex-1 py-2 text-xs font-bold uppercase tracking-wide rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer
+              className={`flex-1 py-2 text-xs font-bold uppercase tracking-wide rounded-lg transition-all flex items-center justify-center gap-1 sm:gap-2 cursor-pointer
                     ${
                       sidebarMode === "agents"
                         ? "bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm border border-sky-100 dark:border-sky-600/30"
-                        : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                        : "text-slate-500 hover:text-sky-600 dark:text-slate-400 dark:hover:text-sky-400"
                     }`}
             >
-              <Users size={14} /> AI Team
+              <Users size={12} className="sm:w-4 sm:h-4" /> Agents
             </button>
           </div>
 
-          <div
-            className="flex-1 overflow-y-auto p-3 space-y-1 mt-2 custom-scrollbar"
-            onDragOver={(e) => handleDragOver(e, null)}
-            onDrop={(e) => handleDrop(e, null)}
-          >
+          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
             {sidebarMode === "chats" && (
-              <div className="animate-in fade-in duration-300 space-y-3">
+              <div className="space-y-2 animate-in fade-in duration-300">
                 {isCreatingFolder ? (
-                  <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-sky-400 flex gap-2 items-center animate-in fade-in slide-in-from-top-2">
+                  <div className="flex items-center gap-2 p-2 bg-white dark:bg-slate-800 rounded-lg border border-sky-200 dark:border-sky-600">
                     <input
                       ref={newFolderInputRef}
+                      className="flex-1 bg-transparent text-sm focus:outline-none"
+                      placeholder="Nome cartella..."
                       value={newFolderName}
                       onChange={(e) => setNewFolderName(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && confirmCreateFolder()}
-                      placeholder="Nome cartella..."
-                      className="flex-1 bg-transparent text-sm focus:outline-none text-slate-800 dark:text-white placeholder-slate-400"
                     />
                     <button
                       onClick={confirmCreateFolder}
@@ -1408,21 +1747,22 @@ export default function App() {
           </div>
         </div>
 
+        {/* Main Chat Area */}
         <div
-          className={`flex-1 flex flex-col relative h-full overflow-hidden transition-colors duration-1000 ${isLoading ? "bg-sky-50/50 dark:bg-sky-950/20 neural-grid-active" : "bg-slate-50/50 dark:bg-transparent"}`}
+          className={`flex-1 flex flex-col relative h-full overflow-hidden transition-colors duration-1000 ${isLoading ? "bg-sky-50/50 dark:bg-sky-950/20 neural-grid-active" : "bg-transparent"}`}
         >
-          <div className="sticky top-4 z-50 px-4 md:px-8">
+          <div className="sticky top-2 sm:top-4 z-50 px-2 sm:px-4 md:px-8">
             <div
-              className={`w-full max-w-6xl mx-auto rounded-2xl p-1 shadow-2xl transition-all duration-500 animate-float overflow-hidden relative ${isDark ? "bg-slate-800/95 border border-sky-500/30 shadow-[0_0_50px_rgba(14,165,233,0.15)]" : "bg-sky-100/90 border border-sky-300 shadow-[0_10px_40px_rgba(14,165,233,0.25)]"} backdrop-blur-xl`}
+              className={`w-full max-w-6xl mx-auto rounded-xl sm:rounded-2xl p-1 shadow-xl sm:shadow-2xl transition-all duration-500 animate-float overflow-hidden relative ${isDark ? "bg-slate-800/95 border border-sky-500/30 shadow-[0_0_50px_rgba(14,165,233,0.15)]" : "bg-sky-100/90 border border-sky-300 shadow-[0_10px_40px_rgba(14,165,233,0.25)]"} backdrop-blur-xl`}
             >
               <div className="absolute inset-0 pointer-events-none opacity-40 brainwave-overlay"></div>
-              <div className="relative flex items-center justify-between p-3 md:p-4 rounded-xl z-10">
-                <div className="flex items-center gap-4 md:gap-6">
+              <div className="relative flex items-center justify-between p-2 sm:p-3 md:p-4 rounded-xl z-10">
+                <div className="flex items-center gap-2 sm:gap-4 md:gap-6">
                   <button
                     onClick={() => setSidebarVisible(!sidebarVisible)}
-                    className="p-3 rounded-xl bg-sky-500 text-white shadow-lg shadow-sky-500/40 hover:scale-110 hover:shadow-sky-500/60 transition-all active:scale-95 border-t border-white/20 md:hidden flex items-center justify-center cursor-pointer"
+                    className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-sky-500 text-white shadow-lg shadow-sky-500/40 hover:scale-110 hover:shadow-sky-500/60 transition-all active:scale-95 border-t border-white/20 md:hidden flex items-center justify-center cursor-pointer"
                   >
-                    <Menu size={24} strokeWidth={3} />
+                    <Menu size={20} strokeWidth={3} />
                   </button>
                   <button
                     onClick={() => setSidebarVisible(!sidebarVisible)}
@@ -1431,9 +1771,9 @@ export default function App() {
                     <ChevronRight size={24} strokeWidth={3} />
                   </button>
 
-                  <div className="flex items-center gap-4 md:gap-6">
+                  <div className="flex items-center gap-2 sm:gap-4 md:gap-6">
                     <div
-                      className={`relative w-16 h-16 md:w-20 md:h-20 shrink-0 rounded-full border-[3px] border-sky-400 shadow-[0_0_25px_rgba(56,189,248,0.6)] overflow-hidden bg-slate-950 ${isLoading ? "animate-pulse shadow-sky-300 ring-2 ring-sky-500/50" : ""}`}
+                      className={`relative w-10 h-10 sm:w-14 sm:h-14 md:w-20 md:h-20 shrink-0 rounded-full border-2 sm:border-[3px] border-sky-400 shadow-[0_0_25px_rgba(56,189,248,0.6)] overflow-hidden bg-slate-950 ${isLoading ? "animate-pulse shadow-sky-300 ring-2 ring-sky-500/50" : ""}`}
                     >
                       <img
                         src={currentAgent.image || "/placeholder.svg"}
@@ -1442,23 +1782,23 @@ export default function App() {
                       />
                       <div className="absolute inset-0 bg-sky-500/10 mix-blend-overlay"></div>
                     </div>
-                    <div>
-                      <div className="flex items-center gap-3 mb-1">
-                        <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-widest leading-none drop-shadow-md">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 sm:gap-3 mb-0.5 sm:mb-1 flex-wrap">
+                        <h1 className="text-base sm:text-xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-wide sm:tracking-widest leading-none drop-shadow-md truncate">
                           {currentAgent.name}
                         </h1>
                         {isLoading ? (
-                          <span className="flex items-center gap-2 px-2 py-0.5 rounded bg-sky-500/20 border border-sky-500/50 text-sky-400 text-[10px] font-bold tracking-widest uppercase animate-pulse">
-                            <BrainCircuit size={12} /> Thinking...
+                          <span className="flex items-center gap-1 sm:gap-2 px-1.5 sm:px-2 py-0.5 rounded bg-sky-500/20 border border-sky-500/50 text-sky-400 text-[8px] sm:text-[10px] font-bold tracking-widest uppercase animate-pulse">
+                            <BrainCircuit size={10} className="hidden sm:block" /> Thinking...
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded bg-sky-500 text-white text-[10px] font-bold tracking-widest shadow-[0_0_10px_rgba(14,165,233,0.5)] uppercase">
+                          <span className="px-1.5 sm:px-2 py-0.5 rounded bg-sky-500 text-white text-[8px] sm:text-[10px] font-bold tracking-widest shadow-[0_0_10px_rgba(14,165,233,0.5)] uppercase">
                             Online
                           </span>
                         )}
                       </div>
                       <p
-                        className={`text-sm leading-tight max-w-md ${isDark ? "text-slate-300" : "text-slate-700"} font-medium`}
+                        className={`text-xs sm:text-sm leading-tight max-w-[150px] sm:max-w-md truncate sm:whitespace-normal ${isDark ? "text-slate-300" : "text-slate-700"} font-medium hidden xs:block`}
                       >
                         {currentAgent.role}
                       </p>
@@ -1466,19 +1806,19 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 md:gap-4">
+                <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4">
                   <button
                     onClick={() => setIsDark(!isDark)}
-                    className="p-2.5 rounded-full bg-slate-200/50 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 transition text-slate-600 dark:text-slate-300 cursor-pointer"
+                    className="p-2 sm:p-2.5 rounded-full bg-slate-200/50 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 transition text-slate-600 dark:text-slate-300 cursor-pointer"
                   >
-                    {isDark ? <Sun size={20} /> : <Moon size={20} />}
+                    {isDark ? <Sun size={18} /> : <Moon size={18} />}
                   </button>
-                  <div className="h-8 w-px bg-slate-300 dark:bg-white/10 mx-2 hidden sm:block"></div>
+                  <div className="h-6 sm:h-8 w-px bg-slate-300 dark:bg-white/10 mx-1 sm:mx-2 hidden sm:block"></div>
                   <a
                     href="/dashboard"
-                    className="p-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 transition-all border-t border-white/20 flex items-center justify-center group cursor-pointer"
+                    className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 transition-all border-t border-white/20 flex items-center justify-center group cursor-pointer"
                   >
-                    <Home size={22} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+                    <Home size={18} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
                   </a>
                   <div className="hidden sm:block">
                     <MockUserButton />
@@ -1488,59 +1828,72 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 custom-scrollbar">
-            <div className="max-w-6xl mx-auto space-y-6">
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto px-2 sm:px-4 md:px-8 py-4 sm:py-6 neural-grid">
+            <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6">
               {messages.map((msg, idx) => (
                 <div
                   key={idx}
-                  className={`flex gap-3 md:gap-4 ${msg.sender === "user" ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                  className={`flex gap-2 sm:gap-3 md:gap-4 ${msg.sender === "user" ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}
                 >
                   {msg.sender === "ai" && (
-  <div className="w-9 h-9 md:w-10 md:h-10 rounded-full shadow-lg shadow-sky-500/30 shrink-0 border-2 border-white dark:border-slate-900 overflow-hidden">
-    <img 
-      src={currentAgent.image || "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Mike-AI-digital-marketing-mg.png"}
-      alt={currentAgent.name}
-      className="w-full h-full object-cover"
-    />
-  </div>
-)}
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-full shadow-lg shadow-sky-500/30 shrink-0 border-2 border-white dark:border-slate-900 overflow-hidden">
+                      <img
+                        src={
+                          currentAgent.image ||
+                          "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Mike-AI-digital-marketing-mg.png" ||
+                          "/placeholder.svg" ||
+                          "/placeholder.svg" ||
+                          "/placeholder.svg" ||
+                          "/placeholder.svg" ||
+                          "/placeholder.svg"
+                        }
+                        alt={currentAgent.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
                   <div
-                    className={`group relative max-w-[85%] md:max-w-3xl rounded-2xl px-4 md:px-5 py-3 md:py-4 shadow-lg transition-all duration-300 hover:shadow-xl ${msg.sender === "ai" ? "bg-white dark:bg-slate-800/90 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700" : "bg-gradient-to-br from-sky-500 to-sky-600 text-white border border-sky-400"}`}
+                    className={`group relative max-w-[90%] sm:max-w-[85%] md:max-w-3xl rounded-xl sm:rounded-2xl px-3 sm:px-4 md:px-5 py-2.5 sm:py-3 md:py-4 shadow-lg transition-all duration-300 hover:shadow-xl ${msg.sender === "ai" ? "bg-white dark:bg-slate-800/90 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700" : "bg-gradient-to-br from-sky-500 to-sky-600 text-white border border-sky-400"}`}
                   >
                     {msg.files && msg.files.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mb-3 pb-3 border-b border-white/20">
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-2 sm:mb-3 pb-2 sm:pb-3 border-b border-white/20">
                         {msg.files.map((fileName, i) => (
-                          <div key={i} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/10 text-xs">
-                            <FileText size={12} /> {fileName}
+                          <div
+                            key={i}
+                            className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-white/10 text-[10px] sm:text-xs"
+                          >
+                            <FileText size={10} className="sm:w-3 sm:h-3" />{" "}
+                            <span className="truncate max-w-[100px] sm:max-w-none">{fileName}</span>
                           </div>
                         ))}
                       </div>
                     )}
                     <div
-                      className="markdown-body prose prose-slate dark:prose-invert max-w-none text-sm md:text-base leading-relaxed"
+                      className="markdown-body prose prose-slate dark:prose-invert max-w-none text-xs sm:text-sm md:text-base leading-relaxed"
                       dangerouslySetInnerHTML={{ __html: formatMessageText(msg.text) }}
                     />
-                    <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-200 dark:border-slate-700/50">
-                      <span className="text-[10px] opacity-60 font-mono">{msg.time}</span>
+                    <div className="flex items-center justify-between mt-2 sm:mt-3 pt-1.5 sm:pt-2 border-t border-slate-200 dark:border-slate-700/50">
+                      <span className="text-[8px] sm:text-[10px] opacity-60 font-mono">{msg.time}</span>
                       {msg.sender === "ai" && msg.text && msg.text !== "..." && (
                         <button
                           onClick={() => handleCopyMessage(msg.text, idx)}
-                          className={`p-1.5 rounded-lg transition-all duration-200 ${copiedMessageIndex === idx ? "bg-green-500/20 text-green-600 dark:text-green-400" : "hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"}`}
+                          className={`p-1 sm:p-1.5 rounded-lg transition-all duration-200 ${copiedMessageIndex === idx ? "bg-green-500/20 text-green-600 dark:text-green-400" : "hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"}`}
                         >
-                          {copiedMessageIndex === idx ? <Check size={14} /> : <Copy size={14} />}
+                          {copiedMessageIndex === idx ? <Check size={12} /> : <Copy size={12} />}
                         </button>
                       )}
                     </div>
                   </div>
                   {msg.sender === "user" && (
-  <div className="w-9 h-9 md:w-10 md:h-10 rounded-full shadow-lg shadow-slate-500/30 shrink-0 border-2 border-white dark:border-slate-900 overflow-hidden">
-    <img 
-      src="https://www.shutterstock.com/image-vector/vector-flat-illustration-grayscale-avatar-600nw-2264922221.jpg"
-      alt="User"
-      className="w-full h-full object-cover"
-    />
-  </div>
-)}
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-full shadow-lg shadow-slate-500/30 shrink-0 border-2 border-white dark:border-slate-900 overflow-hidden">
+                      <img
+                        src="https://www.shutterstock.com/image-vector/vector-flat-illustration-grayscale-avatar-600nw-2264922221.jpg"
+                        alt="User"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
               <div ref={messagesEndRef} />
@@ -1548,35 +1901,37 @@ export default function App() {
           </div>
 
           <div
-            className={`sticky bottom-0 px-4 md:px-8 pb-4 md:pb-6 transition-all duration-500 ${isLoading ? "synapse-active" : ""}`}
+            className={`sticky bottom-0 px-2 sm:px-4 md:px-8 pb-2 sm:pb-4 md:pb-6 transition-all duration-500 ${isLoading ? "synapse-active" : ""}`}
           >
             <div className="max-w-6xl mx-auto">
               {selectedFiles.length > 0 && (
-                <div className="mb-3 flex flex-wrap gap-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-3 border border-slate-200 dark:border-slate-700">
+                <div className="mb-2 sm:mb-3 flex flex-wrap gap-1.5 sm:gap-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-lg sm:rounded-xl p-2 sm:p-3 border border-slate-200 dark:border-slate-700">
                   {selectedFiles.map((file, idx) => (
                     <div
                       key={idx}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-700 text-sm group"
+                      className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-700 text-xs sm:text-sm group"
                     >
-                      <FileText size={14} className="text-sky-600 dark:text-sky-400" />
-                      <span className="text-slate-700 dark:text-slate-300">{file.name}</span>
+                      <FileText size={12} className="text-sky-600 dark:text-sky-400" />
+                      <span className="text-slate-700 dark:text-slate-300 truncate max-w-[80px] sm:max-w-[150px] md:max-w-none">
+                        {file.name}
+                      </span>
                       <button
                         onClick={() => removeFile(idx)}
                         className="text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
                       >
-                        <X size={14} />
+                        <X size={12} />
                       </button>
                     </div>
                   ))}
                 </div>
               )}
-              <div className="glass-panel rounded-2xl shadow-2xl border-2 border-sky-200 dark:border-sky-700/50 overflow-hidden">
-                <div className="flex items-end gap-3 p-3 md:p-4">
+              <div className="glass-panel rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border-2 border-sky-200 dark:border-sky-700/50 overflow-hidden">
+                <div className="flex items-end gap-2 sm:gap-3 p-2 sm:p-3 md:p-4">
                   <button
                     onClick={handleAttachment}
-                    className="p-3 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-sky-500 dark:hover:bg-sky-500 hover:text-white text-slate-600 dark:text-slate-300 transition-all duration-300 hover:scale-110 active:scale-95 shrink-0 cursor-pointer"
+                    className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-sky-500 dark:hover:bg-sky-500 hover:text-white text-slate-600 dark:text-slate-300 transition-all duration-300 hover:scale-110 active:scale-95 shrink-0 cursor-pointer"
                   >
-                    <Paperclip size={20} />
+                    <Paperclip size={18} />
                   </button>
                   <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
                   <textarea
@@ -1589,17 +1944,17 @@ export default function App() {
                         sendMessage()
                       }
                     }}
-                    placeholder="Scrivi il tuo messaggio..."
+                    placeholder={`Scrivi a ${currentAgent.name}...`}
                     rows={1}
-                    className="flex-1 bg-transparent text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm md:text-base resize-none focus:outline-none min-h-[24px] max-h-[200px] py-2"
+                    className="flex-1 bg-transparent text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm md:text-base resize-none focus:outline-none min-h-[24px] max-h-[150px] sm:max-h-[200px] py-2"
                     disabled={isLoading}
                   />
                   <button
                     onClick={sendMessage}
                     disabled={isLoading || (!inputValue.trim() && selectedFiles.length === 0)}
-                    className={`p-3 md:p-3.5 rounded-xl font-bold uppercase tracking-wider transition-all duration-300 shrink-0 border-2 ${isLoading || (!inputValue.trim() && selectedFiles.length === 0) ? "bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 border-transparent cursor-not-allowed" : "bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 text-white shadow-lg shadow-sky-500/40 hover:shadow-sky-500/60 hover:scale-105 active:scale-95 border-sky-400 cursor-pointer"}`}
+                    className={`p-2.5 sm:p-3 md:p-3.5 rounded-lg sm:rounded-xl font-bold uppercase tracking-wider transition-all duration-300 shrink-0 border-2 ${isLoading || (!inputValue.trim() && selectedFiles.length === 0) ? "bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 border-transparent cursor-not-allowed" : "bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 text-white shadow-lg shadow-sky-500/40 hover:shadow-sky-500/60 hover:scale-105 active:scale-95 border-sky-400 cursor-pointer"}`}
                   >
-                    <Send size={20} strokeWidth={2.5} />
+                    <Send size={18} strokeWidth={2.5} />
                   </button>
                 </div>
               </div>
@@ -1610,4 +1965,3 @@ export default function App() {
     </>
   )
 }
-

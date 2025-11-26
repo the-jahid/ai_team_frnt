@@ -643,6 +643,9 @@ export default function App() {
 
   // --- INITIALIZATION ---
   useEffect(() => {
+    // All browser API code now safely runs only on client side
+    if (typeof window === "undefined") return
+
     const savedTheme = localStorage.getItem("theme")
     if (savedTheme) setIsDark(savedTheme === "dark")
     else setIsDark(true)
@@ -700,6 +703,8 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    if (typeof window === "undefined") return
+
     if (isDark) {
       document.documentElement.classList.add("dark")
       localStorage.setItem("theme", "dark")
@@ -1741,7 +1746,7 @@ export default function App() {
 
         {/* Main Chat Area */}
         <div
-          className={`flex-1 flex flex-col relative h-full overflow-hidden transition-colors duration-1000 ${isLoading ? "bg-sky-50/50 dark:bg-sky-950/20 neural-grid-active" : "bg-slate-50/50 dark:bg-transparent"}`}
+          className={`flex-1 flex flex-col relative h-full overflow-hidden transition-colors duration-1000 ${isLoading ? "bg-sky-50/50 dark:bg-sky-950/20 neural-grid-active" : "bg-transparent"}`}
         >
           <div className="sticky top-2 sm:top-4 z-50 px-2 sm:px-4 md:px-8">
             <div
@@ -1834,6 +1839,7 @@ export default function App() {
                         src={
                           currentAgent.image ||
                           "https://www.ai-scaleup.com/wp-content/uploads/2025/02/Mike-AI-digital-marketing-mg.png" ||
+                          "/placeholder.svg" ||
                           "/placeholder.svg" ||
                           "/placeholder.svg"
                         }

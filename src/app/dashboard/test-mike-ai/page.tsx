@@ -898,7 +898,7 @@ export default function App() {
         },
       }
 
-      localStorage.setItem("mike-ai-chats", JSON.stringify(newChatState))
+      localStorage.setItem("mike-ai-chats", JSON.JSON.stringify(newChatState))
       setChats(newChatState)
       setCurrentChatId(newChatId)
       setMessages([welcomeMsg])

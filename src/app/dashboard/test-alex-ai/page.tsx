@@ -51,6 +51,7 @@ interface ChatSession {
   folderId: string | null
   archived: boolean
   agentId: string
+  sessionId?: string // Added sessionId to track n8n conversation history per chat
 }
 
 interface FolderType {
@@ -106,28 +107,28 @@ const simpleMarkdown = {
         '<div class="overflow-x-auto my-3 rounded border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5"><table class="w-full text-left border-collapse text-xs">'
 
       const headerCols = tableBuffer[0].split("|")
-const headerCells = headerCols.map((c) => c.trim()).filter(Boolean)
+      const headerCells = headerCols.map((c) => c.trim()).filter(Boolean)
 
-html += '<thead class="bg-slate-100 dark:bg-white/10"><tr>'
-headerCells.forEach((cell) => {
-  html += `<th class="p-2 border-b border-slate-200 dark:border-white/10 font-bold text-slate-800 dark:text-white">${formatInline(cell)}</th>`
-})
-html += "</tr></thead><tbody>"
+      html += '<thead class="bg-slate-100 dark:bg-white/10"><tr>'
+      headerCells.forEach((cell) => {
+        html += `<th class="p-2 border-b border-slate-200 dark:border-white/10 font-bold text-slate-800 dark:text-white">${formatInline(cell)}</th>`
+      })
+      html += "</tr></thead><tbody>"
 
-for (let i = 2; i < tableBuffer.length; i++) {
-  const rowCols = tableBuffer[i].split("|")
-  const rowCells = rowCols.map((c) => c.trim()).filter(Boolean)
-  
-  // Only add row if it has actual content
-  if (rowCells.length > 0 && rowCells.some(cell => cell.length > 0)) {
-    html +=
-      '<tr class="border-b border-slate-200 dark:border-white/5 last:border-0 hover:bg-slate-100/50 dark:hover:bg-white/5">'
-    rowCells.forEach((cell) => {
-      html += `<td class="p-2 opacity-90">${formatInline(cell)}</td>`
-    })
-    html += "</tr>"
-  }
-}
+      for (let i = 2; i < tableBuffer.length; i++) {
+        const rowCols = tableBuffer[i].split("|")
+        const rowCells = rowCols.map((c) => c.trim()).filter(Boolean)
+
+        // Only add row if it has actual content
+        if (rowCells.length > 0 && rowCells.some((cell) => cell.length > 0)) {
+          html +=
+            '<tr class="border-b border-slate-200 dark:border-white/5 last:border-0 hover:bg-slate-100/50 dark:hover:bg-white/5">'
+          rowCells.forEach((cell) => {
+            html += `<td class="p-2 opacity-90">${formatInline(cell)}</td>`
+          })
+          html += "</tr>"
+        }
+      }
       html += "</tbody></table></div>"
 
       output += html
@@ -263,11 +264,12 @@ const AGENTS_DB: Record<string, any> = {
     accentColor: "#fb923c",
     route: "/dashboard/jim-ai",
   },
-"daniele-ai": {
+  "daniele-ai": {
     name: "Daniele AI",
     role: "Response Copywriter",
     image: "https://www.ai-scaleup.com/wp-content/uploads/2025/11/daniele_ai_direct_response_copywriter.png",
-    description: "Progetto e scrivo copy di direct response per trasformare traffico qualificato in lead e clienti paganti.",
+    description:
+      "Progetto e scrivo copy di direct response per trasformare traffico qualificato in lead e clienti paganti.",
     primaryColor: "#f97316",
     accentColor: "#fb923c",
     route: "/dashboard/daniele-ai",
@@ -285,7 +287,7 @@ const AI_TEAM_LIST = [
   { id: "alex-ai" },
   { id: "aladino-ai" },
   { id: "jim-ai" },
-{ id: "daniele-ai" },
+  { id: "daniele-ai" },
 ]
 
 // --- MOCK USER BUTTON ---
@@ -435,6 +437,7 @@ export default function App() {
   const initNewChatForAgent = (agent: any, specificAgentId?: string) => {
     const targetAgentId = specificAgentId || activeAgentId
     const newChatId = "chat_" + Date.now()
+    const newSessionId = "session_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9)
 
     let messageText = `Ciao! Sono **${agent.name}**. ${agent.description} Come posso aiutarti?`
 
@@ -460,9 +463,9 @@ export default function App() {
         folderId: null,
         archived: false,
         agentId: targetAgentId,
+        sessionId: newSessionId, // Store sessionId with the chat
       }
       const newChats = { [newChatId]: newChat, ...prev }
-      // </CHANGE> Fixed JSON.JSON.stringify to JSON.stringify on line 474
       localStorage.setItem("alex-ai-chats", JSON.stringify(newChats))
       return newChats
     })
@@ -471,10 +474,9 @@ export default function App() {
   const updateChatState = (chatId: string, updates: Partial<ChatSession>) => {
     setChats((prev) => {
       const existing = prev[chatId]
-      if (!existing) return prev // Should not happen if chatId is valid
+      if (!existing) return prev
       const updatedChat = { ...existing, ...updates }
       const newChats = { ...prev, [chatId]: updatedChat }
-      // </CHANGE> Fixed JSON.JSON.stringify to JSON.stringify on line 474
       localStorage.setItem("alex-ai-chats", JSON.stringify(newChats))
       return newChats
     })
@@ -591,6 +593,7 @@ export default function App() {
           folderId: null,
           archived: false,
           agentId: activeAgentId,
+          sessionId: "session_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9),
         },
       }
 
@@ -698,6 +701,7 @@ export default function App() {
     let currentChatIdForSend = currentChatId
     if (!currentChatIdForSend) {
       const newChatId = "chat_" + Date.now()
+      const newSessionId = "session_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9)
       const agent = AGENTS_DB[activeAgentId]
       const welcomeMsg: Message = {
         text: `Ciao! Sono **${agent.name}**. ${agent.description} Come posso aiutarti?`,
@@ -712,6 +716,7 @@ export default function App() {
         folderId: null,
         archived: false,
         agentId: activeAgentId,
+        sessionId: newSessionId, // Store sessionId with the new chat
       }
 
       const updatedChatsState = { ...chats, [newChatId]: newChat }
@@ -740,8 +745,18 @@ export default function App() {
     setMessages((prev) => [...prev, aiResponsePlaceholder])
 
     try {
-      const sessionId = localStorage.getItem("alex-ai-session-id") || "session_" + Date.now()
-      if (!currentChatIdForSend) throw new Error("currentChatIdForSend is null") // Should not happen
+      const currentChat = chats[currentChatIdForSend!]
+      let sessionId = currentChat?.sessionId
+
+      if (!sessionId) {
+        sessionId = "session_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9)
+        const updatedChat = { ...currentChat, sessionId }
+        const updatedChatsState = { ...chats, [currentChatIdForSend!]: updatedChat }
+        setChats(updatedChatsState)
+        localStorage.setItem("alex-ai-chats", JSON.stringify(updatedChatsState))
+      }
+
+      if (!currentChatIdForSend) throw new Error("currentChatIdForSend is null")
 
       const response = await fetch(N8N_ENDPOINT, {
         method: "POST",
@@ -749,7 +764,7 @@ export default function App() {
         body: JSON.stringify({
           chatInput:
             inputValue + (selectedFiles.length ? ` [Attached: ${selectedFiles.map((f) => f.name).join(", ")}]` : ""),
-          sessionId: sessionId,
+          sessionId: sessionId, // Use chat-specific sessionId for conversation continuity
           useMemory: useMemory,
           metadata: { namespace: CURRENT_NAMESPACE.current, source: activeAgentId },
           chatId: currentChatIdForSend,
@@ -846,110 +861,110 @@ export default function App() {
   }
 
   const handleCopyMessage = async (text: string, index: number) => {
-  console.log("🔧 TABLE COPY FIX v3.0 - ACTIVE")
-  
-  try {
-    let htmlContent = formatMessageText(text)
-    console.log("📋 Original HTML:", htmlContent.substring(0, 300))
+    console.log("🔧 TABLE COPY FIX v3.0 - ACTIVE")
 
-    // STEP 1: Remove wrapper divs from tables
-    htmlContent = htmlContent.replace(
-      /<div[^>]*class="[^"]*overflow-x-auto[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/div>/g,
-      '$1'
-    )
+    try {
+      let htmlContent = formatMessageText(text)
+      console.log("📋 Original HTML:", htmlContent.substring(0, 300))
 
-    // STEP 2: Use DOM parser to clean empty rows
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(htmlContent, 'text/html')
-    
-    // Find all table rows and remove empty ones
-    const allRows = doc.querySelectorAll('tr')
-    allRows.forEach(row => {
-      const cells = row.querySelectorAll('td, th')
-      let hasContent = false
-      
-      // Check if any cell has actual text content
-      cells.forEach(cell => {
-        const content = cell.textContent?.trim() || ''
-        if (content.length > 0) {
-          hasContent = true
+      // STEP 1: Remove wrapper divs from tables
+      htmlContent = htmlContent.replace(
+        /<div[^>]*class="[^"]*overflow-x-auto[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/div>/g,
+        "$1",
+      )
+
+      // STEP 2: Use DOM parser to clean empty rows
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(htmlContent, "text/html")
+
+      // Find all table rows and remove empty ones
+      const allRows = doc.querySelectorAll("tr")
+      allRows.forEach((row) => {
+        const cells = row.querySelectorAll("td, th")
+        let hasContent = false
+
+        // Check if any cell has actual text content
+        cells.forEach((cell) => {
+          const content = cell.textContent?.trim() || ""
+          if (content.length > 0) {
+            hasContent = true
+          }
+        })
+
+        // Remove row if it has cells but no content
+        if (!hasContent && cells.length > 0) {
+          console.log("🗑️ Removing empty row with", cells.length, "empty cells")
+          row.remove()
         }
       })
-      
-      // Remove row if it has cells but no content
-      if (!hasContent && cells.length > 0) {
-        console.log("🗑️ Removing empty row with", cells.length, "empty cells")
-        row.remove()
-      }
-    })
-    
-    // Get the cleaned HTML
-    htmlContent = doc.body.innerHTML
-    console.log("✅ After cleaning:", htmlContent.substring(0, 300))
 
-    // STEP 3: Apply inline styles
-    htmlContent = htmlContent
-      .replace(/<strong[^>]*>/g, '<strong style="font-weight: 700; color: #0f172a;">')
-      .replace(/<em[^>]*>/g, '<em style="font-style: italic; color: #334155;">')
-      .replace(
-        /<code[^>]*>/g,
-        '<code style="background-color: #f1f5f9; padding: 2px 4px; border-radius: 4px; font-family: monospace; font-size: 0.9em; border: 1px solid #e2e8f0;">',
-      )
-      .replace(
-        /<ul[^>]*>/g,
-        '<ul style="margin-left: 20px; list-style-type: disc; padding-left: 20px; margin-bottom: 10px;">',
-      )
-      .replace(/<li[^>]*>/g, '<li style="margin-bottom: 4px;">')
-      .replace(
-        /<h3[^>]*>/g,
-        '<h3 style="font-size: 18px; font-weight: bold; margin-top: 15px; margin-bottom: 5px; color: #0f172a;">',
-      )
-      .replace(
-        /<h2[^>]*>/g,
-        '<h2 style="font-size: 22px; font-weight: bold; border-bottom: 2px solid #e2e8f0; margin-top: 20px; margin-bottom: 10px; color: #0f172a;">',
-      )
-      .replace(
-        /<table[^>]*>/g,
-        '<table style="border-collapse: collapse; width: 100%; border: 1px solid #cbd5e1; font-family: sans-serif; font-size: 14px; margin: 10px 0;">',
-      )
-      .replace(/<thead[^>]*>/g, '<thead style="background-color: #f1f5f9;">')
-      .replace(
-        /<th[^>]*>/g,
-        '<th style="border: 1px solid #94a3b8; padding: 10px; text-align: left; font-weight: bold; background-color: #f1f5f9; color: #0f172a;">',
-      )
-      .replace(/<td[^>]*>/g, '<td style="border: 1px solid #cbd5e1; padding: 8px; color: #334155;">')
-      .replace(/<tr[^>]*>/g, '<tr>')
+      // Get the cleaned HTML
+      htmlContent = doc.body.innerHTML
+      console.log("✅ After cleaning:", htmlContent.substring(0, 300))
 
-    const finalHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head><meta charset="utf-8"></head>
-      <body style="font-family: sans-serif; color: #0f172a; line-height: 1.6;">
-        ${htmlContent}
-      </body>
-      </html>
-    `
+      // STEP 3: Apply inline styles
+      htmlContent = htmlContent
+        .replace(/<strong[^>]*>/g, '<strong style="font-weight: 700; color: #0f172a;">')
+        .replace(/<em[^>]*>/g, '<em style="font-style: italic; color: #334155;">')
+        .replace(
+          /<code[^>]*>/g,
+          '<code style="background-color: #f1f5f9; padding: 2px 4px; border-radius: 4px; font-family: monospace; font-size: 0.9em; border: 1px solid #e2e8f0;">',
+        )
+        .replace(
+          /<ul[^>]*>/g,
+          '<ul style="margin-left: 20px; list-style-type: disc; padding-left: 20px; margin-bottom: 10px;">',
+        )
+        .replace(/<li[^>]*>/g, '<li style="margin-bottom: 4px;">')
+        .replace(
+          /<h3[^>]*>/g,
+          '<h3 style="font-size: 18px; font-weight: bold; margin-top: 15px; margin-bottom: 5px; color: #0f172a;">',
+        )
+        .replace(
+          /<h2[^>]*>/g,
+          '<h2 style="font-size: 22px; font-weight: bold; border-bottom: 2px solid #e2e8f0; margin-top: 20px; margin-bottom: 10px; color: #0f172a;">',
+        )
+        .replace(
+          /<table[^>]*>/g,
+          '<table style="border-collapse: collapse; width: 100%; border: 1px solid #cbd5e1; font-family: sans-serif; font-size: 14px; margin: 10px 0;">',
+        )
+        .replace(/<thead[^>]*>/g, '<thead style="background-color: #f1f5f9;">')
+        .replace(
+          /<th[^>]*>/g,
+          '<th style="border: 1px solid #94a3b8; padding: 10px; text-align: left; font-weight: bold; background-color: #f1f5f9; color: #0f172a;">',
+        )
+        .replace(/<td[^>]*>/g, '<td style="border: 1px solid #cbd5e1; padding: 8px; color: #334155;">')
+        .replace(/<tr[^>]*>/g, "<tr>")
 
-    const blobHtml = new Blob([finalHtml], { type: "text/html" })
-    const blobText = new Blob([text], { type: "text/plain" })
+      const finalHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: sans-serif; color: #0f172a; line-height: 1.6;">
+          ${htmlContent}
+        </body>
+        </html>
+      `
 
-    await navigator.clipboard.write([
-      new ClipboardItem({
-        "text/html": blobHtml,
-        "text/plain": blobText,
-      }),
-    ])
+      const blobHtml = new Blob([finalHtml], { type: "text/html" })
+      const blobText = new Blob([text], { type: "text/plain" })
 
-    console.log("✅ Copy completed successfully!")
-    setCopiedMessageIndex(index)
-    setTimeout(() => setCopiedMessageIndex(null), 2000)
-  } catch (err) {
-    console.error("❌ Rich copy failed:", err)
-    navigator.clipboard.writeText(text)
-    setCopiedMessageIndex(index)
-    setTimeout(() => setCopiedMessageIndex(null), 2000)
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/html": blobHtml,
+          "text/plain": blobText,
+        }),
+      ])
+
+      console.log("✅ Copy completed successfully!")
+      setCopiedMessageIndex(index)
+      setTimeout(() => setCopiedMessageIndex(null), 2000)
+    } catch (err) {
+      console.error("❌ Rich copy failed:", err)
+      navigator.clipboard.writeText(text)
+      setCopiedMessageIndex(index)
+      setTimeout(() => setCopiedMessageIndex(null), 2000)
+    }
   }
-}
 
   return (
     <>
@@ -1020,6 +1035,7 @@ export default function App() {
       `}</style>
 
       <div className={`flex h-screen w-full bg-tech-grid azure-glow-bg ${isDark ? "dark" : ""}`}>
+        {/* Sidebar */}
         <div
           className={`glass-panel flex flex-col transition-all duration-500 ease-[cubic-bezier(0,0,0.2,1)] z-40 
                         ${sidebarVisible ? "w-80 translate-x-0" : "w-0 -translate-x-full opacity-0"} 
@@ -1185,19 +1201,20 @@ export default function App() {
                                   onClick={() => loadChat(id)}
                                   draggable
                                   onDragStart={(e) => handleDragStart(e, id)}
-                                  className={`group flex justify-between items-center p-1.5 rounded-lg cursor-pointer border transition-all duration-200 ml-2
-                                                         ${
-                                                           isActive
-                                                             ? "bg-white dark:bg-slate-800 border-l-2 border-l-sky-500 border-y-transparent border-r-transparent shadow-sm"
-                                                             : "border-transparent hover:bg-white/60 dark:hover:bg-white/5"
-                                                         }`}
+                                  className={`group p-2 rounded-lg cursor-pointer transition-all flex items-center justify-between ${isActive ? "bg-sky-100 dark:bg-sky-900/50 border-l-2 border-l-sky-500" : "hover:bg-white/50 dark:hover:bg-white/5"}`}
                                 >
                                   <div className="flex-1 min-w-0">
-                                    <h4
-                                      className={`text-xs font-medium truncate ${isActive ? "text-sky-600 dark:text-sky-400" : "text-slate-600 dark:text-slate-400"}`}
+                                    <p
+                                      className={`text-xs font-semibold truncate ${isActive ? "text-sky-600 dark:text-sky-400" : "text-slate-600 dark:text-slate-400"}`}
                                     >
                                       {chat.title}
-                                    </h4>
+                                    </p>
+                                    <p className="text-[9px] text-slate-400 font-mono">
+                                      {new Date(chat.lastUpdated).toLocaleDateString(undefined, {
+                                        day: "2-digit",
+                                        month: "2-digit",
+                                      })}
+                                    </p>
                                   </div>
                                   <button
                                     onClick={(e) => deleteChat(id, e)}
@@ -1408,9 +1425,11 @@ export default function App() {
           </div>
         </div>
 
+        {/* Main Content */}
         <div
           className={`flex-1 flex flex-col relative h-full overflow-hidden transition-colors duration-1000 ${isLoading ? "bg-sky-50/50 dark:bg-sky-950/20 neural-grid-active" : "bg-slate-50/50 dark:bg-transparent"}`}
         >
+          {/* Header */}
           <div className="sticky top-4 z-50 px-4 md:px-8">
             <div
               className={`w-full max-w-6xl mx-auto rounded-2xl p-1 shadow-2xl transition-all duration-500 animate-float overflow-hidden relative ${isDark ? "bg-slate-800/95 border border-sky-500/30 shadow-[0_0_50px_rgba(14,165,233,0.15)]" : "bg-sky-100/90 border border-sky-300 shadow-[0_10px_40px_rgba(14,165,233,0.25)]"} backdrop-blur-xl`}
@@ -1488,6 +1507,7 @@ export default function App() {
             </div>
           </div>
 
+          {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 custom-scrollbar">
             <div className="max-w-6xl mx-auto space-y-6">
               {messages.map((msg, idx) => (
@@ -1496,14 +1516,17 @@ export default function App() {
                   className={`flex gap-3 md:gap-4 ${msg.sender === "user" ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}
                 >
                   {msg.sender === "ai" && (
-  <div className="w-9 h-9 md:w-10 md:h-10 rounded-full shadow-lg shadow-sky-500/30 shrink-0 border-2 border-white dark:border-slate-900 overflow-hidden">
-    <img 
-      src={currentAgent.image || "https://www.ai-scaleup.com/wp-content/uploads/2025/03/David-AI-Ai-Specialist-social-ads.png"}
-      alt={currentAgent.name}
-      className="w-full h-full object-cover"
-    />
-  </div>
-)}
+                    <div className="w-9 h-9 md:w-10 md:h-10 rounded-full shadow-lg shadow-sky-500/30 shrink-0 border-2 border-white dark:border-slate-900 overflow-hidden">
+                      <img
+                        src={
+                          currentAgent.image ||
+                          "https://www.ai-scaleup.com/wp-content/uploads/2025/03/David-AI-Ai-Specialist-social-ads.png"
+                        }
+                        alt={currentAgent.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
                   <div
                     className={`group relative max-w-[85%] md:max-w-3xl rounded-2xl px-4 md:px-5 py-3 md:py-4 shadow-lg transition-all duration-300 hover:shadow-xl ${msg.sender === "ai" ? "bg-white dark:bg-slate-800/90 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700" : "bg-gradient-to-br from-sky-500 to-sky-600 text-white border border-sky-400"}`}
                   >
@@ -1525,7 +1548,7 @@ export default function App() {
                       {msg.sender === "ai" && msg.text && msg.text !== "..." && (
                         <button
                           onClick={() => handleCopyMessage(msg.text, idx)}
-                          className={`p-1.5 rounded-lg transition-all duration-200 ${copiedMessageIndex === idx ? "bg-green-500/20 text-green-600 dark:text-green-400" : "hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"}`}
+                          className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer"
                         >
                           {copiedMessageIndex === idx ? <Check size={14} /> : <Copy size={14} />}
                         </button>
@@ -1533,20 +1556,21 @@ export default function App() {
                     </div>
                   </div>
                   {msg.sender === "user" && (
-  <div className="w-9 h-9 md:w-10 md:h-10 rounded-full shadow-lg shadow-slate-500/30 shrink-0 border-2 border-white dark:border-slate-900 overflow-hidden">
-    <img 
-      src="https://www.shutterstock.com/image-vector/vector-flat-illustration-grayscale-avatar-600nw-2264922221.jpg"
-      alt="User"
-      className="w-full h-full object-cover"
-    />
-  </div>
-)}
+                    <div className="w-9 h-9 md:w-10 md:h-10 rounded-full shadow-lg shadow-slate-500/30 shrink-0 border-2 border-white dark:border-slate-900 overflow-hidden">
+                      <img
+                        src="https://www.shutterstock.com/image-vector/vector-flat-illustration-grayscale-avatar-600nw-2264922221.jpg"
+                        alt="User"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
               <div ref={messagesEndRef} />
             </div>
           </div>
 
+          {/* Input Area */}
           <div
             className={`sticky bottom-0 px-4 md:px-8 pb-4 md:pb-6 transition-all duration-500 ${isLoading ? "synapse-active" : ""}`}
           >
@@ -1610,5 +1634,3 @@ export default function App() {
     </>
   )
 }
-
-
